@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+out/
+cache/
+artifacts/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Secrets
+secrets.env
+secrets.yaml
+service-account.json
+*.pem
+*.key
+
+# PDFs
+*.pdf
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Foundry
+contracts/out/
+contracts/cache/
+
+# CRE
+.cre/
+**/.cre_build_tmp.js
+**/bun.lock
+
+# Logs
+*.log
+npm-debug.log*
+
+# Shell scripts
+*.sh
+
+# Generated deployment artifacts
+contracts/broadcast/
+
+# Local planning and scratch docs
+IMPLEMENTATION_PLAN.md
+WINNING_STRATEGY.md
+fulltxt.md
