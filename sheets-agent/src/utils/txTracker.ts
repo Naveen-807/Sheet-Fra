@@ -190,7 +190,7 @@ function printLifecycle(tx: TrackedTx): void {
   console.log(`${color}${B}║${R}  ${B}Status   :${R} ${color}${label}${R}  ${DIM}(total: ${totalElapsed})${R}`)
 
   if (tx.txHash) {
-    const explorerUrl = `https://sepolia.etherscan.io/tx/${tx.txHash}`
+    const explorerUrl = `https://polkadot-hub-testnet.blockscout.com/tx/${tx.txHash}`
     console.log(`${color}${B}║${R}  ${B}Tx Hash  :${R} ${GREEN}${tx.txHash}${R}`)
     console.log(`${color}${B}║${R}  ${B}Explorer :${R} ${BLUE}${explorerUrl}${R}`)
   }

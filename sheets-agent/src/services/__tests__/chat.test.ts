@@ -4,18 +4,16 @@ import { describe, expect, it, vi, beforeEach } from "vitest"
 // Mock dependencies BEFORE importing the module under test
 // ---------------------------------------------------------------------------
 
-vi.mock("../cre", () => ({
-  triggerCREWorkflow: vi.fn(),
-}))
-
-vi.mock("../creClient", () => ({
-  creRead: vi.fn(),
+vi.mock("../gemini", () => ({
+  chatWithGemini: vi.fn(),
+  isGeminiAvailable: vi.fn(),
 }))
 
 vi.mock("../sheets", () => ({
   readChatHistory: vi.fn(),
   appendAgentLog: vi.fn(),
-  setChatThinking: vi.fn(),
+  readRiskRules: vi.fn(),
+  stagePendingTrade: vi.fn(),
 }))
 
 vi.mock("../../utils/errors", () => ({
@@ -26,17 +24,27 @@ vi.mock("../../utils/errors", () => ({
   }),
 }))
 
+vi.mock("../../config/polkadot-hub", () => ({
+  POLKADOT_HUB_TESTNET: {
+    chainId: 420420417,
+    name: "Polkadot Hub Testnet",
+    rpcUrl: "https://testnet-passet-hub-eth-rpc.polkadot.io",
+    blockExplorer: "https://polkadot-hub-testnet.blockscout.com",
+    nativeCurrency: { name: "PAS", symbol: "PAS", decimals: 10 },
+  },
+}))
+
 import { processChatMessage, type ChatResponse } from "../chat"
-import { triggerCREWorkflow } from "../cre"
-import { creRead } from "../creClient"
-import { readChatHistory, appendAgentLog, setChatThinking } from "../sheets"
+import { chatWithGemini, isGeminiAvailable } from "../gemini"
+import { readChatHistory, appendAgentLog, readRiskRules, stagePendingTrade } from "../sheets"
 
 // Typed mock helpers
-const mockTriggerCREWorkflow = vi.mocked(triggerCREWorkflow)
-const mockCreRead = vi.mocked(creRead)
+const mockChatWithGemini = vi.mocked(chatWithGemini)
+const mockIsGeminiAvailable = vi.mocked(isGeminiAvailable)
 const mockReadChatHistory = vi.mocked(readChatHistory)
 const mockAppendAgentLog = vi.mocked(appendAgentLog)
-const mockSetChatThinking = vi.mocked(setChatThinking)
+const mockReadRiskRules = vi.mocked(readRiskRules)
+const mockStagePendingTrade = vi.mocked(stagePendingTrade)
 
 const SHEET_ID = "test-sheet-id-123"
 
@@ -47,24 +55,20 @@ const SHEET_ID = "test-sheet-id-123"
 describe("processChatMessage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Default stubs so tests don't throw on fire-and-forget calls
+    // Default stubs
     mockAppendAgentLog.mockResolvedValue(undefined)
-    mockSetChatThinking.mockResolvedValue(undefined)
-    // Set wallet address for slash commands that need it
-    process.env.WALLET_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"
-    // Default creRead mock returns plausible data
-    mockCreRead.mockResolvedValue({
-      balance: 100.5,
-      decimals: 6,
-      raw: "100500000",
-      price: 3456.78,
-      gasGwei: 12,
-      tokens: [
-        { symbol: "USDC", balance: 100, price: 1, valueUsd: 100 },
-        { symbol: "WETH", balance: 0.05, price: 3000, valueUsd: 150 },
-      ],
-      totalValueUsd: 250,
+    mockIsGeminiAvailable.mockReturnValue(true)
+    mockReadRiskRules.mockResolvedValue({
+      maxSlippageBps: 200,
+      allowedAssets: ["DOT", "USDT", "WETH"],
+      minStableReserveUsd: 500,
+      maxSingleAssetPct: 60,
+      cooldownMinutes: 5,
+      maxDailyVolumeUsd: 10000,
+      maxDriftPct: 15,
     })
+    mockStagePendingTrade.mockResolvedValue(undefined)
+    process.env.WALLET_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"
   })
 
   // =======================================================================
@@ -76,33 +80,39 @@ describe("processChatMessage", () => {
 
       expect(result.source).toBe("slash-command")
       expect(result.role).toBe("Agent")
-      expect(result.response).toContain("Available commands:")
+      expect(result.response).toContain("Available Commands:")
       expect(result.response).toContain("/balance")
       expect(result.response).toContain("/price")
       expect(result.response).toContain("/gas")
       expect(result.response).toContain("/portfolio")
-      expect(result.response).toContain("/help")
+      expect(result.response).toContain("/trade")
+    })
+
+    it("includes Polkadot-specific commands", async () => {
+      const result = await processChatMessage("/help", SHEET_ID)
+
+      expect(result.response).toContain("/polkadot")
+      expect(result.response).toContain("/hub-status")
+      expect(result.response).toContain("/dot-price")
     })
 
     it("also responds to /commands alias", async () => {
       const result = await processChatMessage("/commands", SHEET_ID)
 
       expect(result.source).toBe("slash-command")
-      expect(result.response).toContain("Available commands:")
+      expect(result.response).toContain("Available Commands:")
     })
 
     it("handles leading/trailing whitespace", async () => {
       const result = await processChatMessage("  /help  ", SHEET_ID)
 
       expect(result.source).toBe("slash-command")
-      expect(result.response).toContain("Available commands:")
+      expect(result.response).toContain("Available Commands:")
     })
 
     it("logs the command to agent logs", async () => {
       await processChatMessage("/help", SHEET_ID)
 
-      // appendAgentLog is called fire-and-forget (.catch(() => {}))
-      // so we just verify it was called
       expect(mockAppendAgentLog).toHaveBeenCalledWith(
         SHEET_ID,
         "chat_command",
@@ -111,16 +121,10 @@ describe("processChatMessage", () => {
       )
     })
 
-    it("does not trigger CRE workflow for slash commands", async () => {
+    it("does not trigger Gemini for slash commands", async () => {
       await processChatMessage("/help", SHEET_ID)
 
-      expect(mockTriggerCREWorkflow).not.toHaveBeenCalled()
-    })
-
-    it("does not show the thinking indicator for slash commands", async () => {
-      await processChatMessage("/help", SHEET_ID)
-
-      expect(mockSetChatThinking).not.toHaveBeenCalled()
+      expect(mockChatWithGemini).not.toHaveBeenCalled()
     })
   })
 
@@ -128,25 +132,11 @@ describe("processChatMessage", () => {
   // Slash command: /balance <token>
   // =======================================================================
   describe("/balance command", () => {
-    it("returns a balance message for USDC", async () => {
-      const result = await processChatMessage("/balance USDC", SHEET_ID)
+    it("returns disabled message in sheets-only mode", async () => {
+      const result = await processChatMessage("/balance USDT", SHEET_ID)
 
       expect(result.source).toBe("slash-command")
-      expect(result.response).toContain("USDC")
-      expect(result.response).toContain("balance")
-    })
-
-    it("uppercases the token symbol", async () => {
-      const result = await processChatMessage("/balance eth", SHEET_ID)
-
-      expect(result.response).toContain("ETH")
-    })
-
-    it("handles a token symbol with extra whitespace", async () => {
-      const result = await processChatMessage("/balance   link  ", SHEET_ID)
-
-      expect(result.source).toBe("slash-command")
-      expect(result.response).toContain("LINK")
+      expect(result.response).toContain("disabled")
     })
   })
 
@@ -154,29 +144,11 @@ describe("processChatMessage", () => {
   // Slash command: /price <pair>
   // =======================================================================
   describe("/price command", () => {
-    it("returns a price message for ETH/USD pair", async () => {
-      const result = await processChatMessage("/price ETH/USD", SHEET_ID)
+    it("returns disabled message in sheets-only mode", async () => {
+      const result = await processChatMessage("/price DOT/USD", SHEET_ID)
 
       expect(result.source).toBe("slash-command")
-      expect(result.response).toContain("ETH/USD")
-    })
-
-    it("appends /USD when no slash in pair", async () => {
-      const result = await processChatMessage("/price ETH", SHEET_ID)
-
-      expect(result.response).toContain("ETH/USD")
-    })
-
-    it("preserves explicit pair with slash", async () => {
-      const result = await processChatMessage("/price BTC/ETH", SHEET_ID)
-
-      expect(result.response).toContain("BTC/ETH")
-    })
-
-    it("uppercases the pair", async () => {
-      const result = await processChatMessage("/price eth/usd", SHEET_ID)
-
-      expect(result.response).toContain("ETH/USD")
+      expect(result.response).toContain("disabled")
     })
   })
 
@@ -184,11 +156,11 @@ describe("processChatMessage", () => {
   // Slash command: /gas
   // =======================================================================
   describe("/gas command", () => {
-    it("returns gas price information", async () => {
+    it("returns disabled message", async () => {
       const result = await processChatMessage("/gas", SHEET_ID)
 
       expect(result.source).toBe("slash-command")
-      expect(result.response).toContain("gas")
+      expect(result.response).toContain("disabled")
     })
   })
 
@@ -196,11 +168,68 @@ describe("processChatMessage", () => {
   // Slash command: /portfolio
   // =======================================================================
   describe("/portfolio command", () => {
-    it("returns portfolio summary information", async () => {
+    it("returns disabled message", async () => {
       const result = await processChatMessage("/portfolio", SHEET_ID)
 
       expect(result.source).toBe("slash-command")
-      expect(result.response).toContain("Portfolio")
+      expect(result.response).toContain("disabled")
+    })
+  })
+
+  // =======================================================================
+  // Slash command: /risk
+  // =======================================================================
+  describe("/risk command", () => {
+    it("returns current risk rules", async () => {
+      const result = await processChatMessage("/risk", SHEET_ID)
+
+      expect(result.source).toBe("slash-command")
+      expect(result.response).toContain("Risk Rules")
+      expect(result.response).toContain("200 bps")
+      expect(result.response).toContain("DOT")
+    })
+  })
+
+  // =======================================================================
+  // Slash command: /status
+  // =======================================================================
+  describe("/status command", () => {
+    it("returns agent status with Polkadot Hub info", async () => {
+      const result = await processChatMessage("/status", SHEET_ID)
+
+      expect(result.source).toBe("slash-command")
+      expect(result.response).toContain("SheetFra Agent Status")
+      expect(result.response).toContain("Polkadot Hub Testnet")
+      expect(result.response).toContain("420420417")
+    })
+  })
+
+  // =======================================================================
+  // Slash command: /polkadot
+  // =======================================================================
+  describe("/polkadot command", () => {
+    it("returns Polkadot ecosystem info", async () => {
+      const result = await processChatMessage("/polkadot", SHEET_ID)
+
+      expect(result.source).toBe("slash-command")
+      expect(result.response).toContain("Polkadot Ecosystem")
+      expect(result.response).toContain("Hydration")
+      expect(result.response).toContain("Bifrost")
+      expect(result.response).toContain("Snowbridge")
+    })
+  })
+
+  // =======================================================================
+  // Slash command: /hub-status
+  // =======================================================================
+  describe("/hub-status command", () => {
+    it("returns Polkadot Hub network info", async () => {
+      const result = await processChatMessage("/hub-status", SHEET_ID)
+
+      expect(result.source).toBe("slash-command")
+      expect(result.response).toContain("Polkadot Hub Testnet")
+      expect(result.response).toContain("420420417")
+      expect(result.response).toContain("polkadot-hub-testnet.blockscout.com")
     })
   })
 
@@ -213,14 +242,17 @@ describe("processChatMessage", () => {
       "/commands",
       "/gas",
       "/portfolio",
-      "/balance USDC",
-      "/price ETH/USD",
+      "/balance USDT",
+      "/price DOT/USD",
+      "/risk",
+      "/status",
+      "/polkadot",
+      "/hub-status",
     ])("'%s' returns role=Agent and an ISO timestamp", async (cmd) => {
       const result = await processChatMessage(cmd, SHEET_ID)
 
       expect(result.role).toBe("Agent")
       expect(result.source).toBe("slash-command")
-      // Timestamp should be a valid ISO string
       expect(Number.isNaN(Date.parse(result.timestamp))).toBe(false)
     })
   })
@@ -229,114 +261,96 @@ describe("processChatMessage", () => {
   // AI processing (non-slash messages)
   // =======================================================================
   describe("AI message processing", () => {
-    it("triggers CRE workflow with chat history context", async () => {
-      const historyRows = [
-        { role: "User", message: "Hello" },
+    it("calls Gemini with chat history context", async () => {
+      mockReadChatHistory.mockResolvedValue([
+        { role: "You", message: "Hello" },
         { role: "Agent", message: "Hi there!" },
-      ]
-      mockReadChatHistory.mockResolvedValue(historyRows)
-      mockTriggerCREWorkflow.mockResolvedValue({
-        success: true,
-        output: "AI response about trading",
-        mode: "simulation",
+      ])
+      mockChatWithGemini.mockResolvedValue({
+        action: "info",
+        response: "AI response about trading",
+        isTradeIntent: false,
+        confidence: "high",
       })
 
       const result = await processChatMessage("What is my balance?", SHEET_ID)
 
-      expect(result.source).toBe("ai")
+      expect(result.source).toBe("gemini-direct")
       expect(result.role).toBe("Agent")
       expect(result.response).toBe("AI response about trading")
+      expect(mockChatWithGemini).toHaveBeenCalled()
+    })
 
-      // Verify CRE was called with the right workflow
-      expect(mockTriggerCREWorkflow).toHaveBeenCalledWith(
-        "ai-trade-executor",
-        expect.objectContaining({ command: expect.any(String) }),
+    it("stages a pending trade when Gemini detects swap intent", async () => {
+      mockReadChatHistory.mockResolvedValue([])
+      mockChatWithGemini.mockResolvedValue({
+        action: "swap",
+        tokenIn: "USDT",
+        tokenOut: "DOT",
+        amount: 50,
+        response: "I'll swap 50 USDT for DOT for you.",
+        isTradeIntent: true,
+        confidence: "high",
+      })
+
+      const result = await processChatMessage("swap 50 USDT for DOT", SHEET_ID)
+
+      expect(result.source).toBe("gemini-direct")
+      expect(result.tradeIntent).toBeDefined()
+      expect(result.tradeIntent?.action).toBe("swap")
+      expect(result.tradeIntent?.tokenIn).toBe("USDT")
+      expect(result.tradeIntent?.tokenOut).toBe("DOT")
+      expect(mockStagePendingTrade).toHaveBeenCalledWith(
+        SHEET_ID,
+        expect.objectContaining({
+          tokenIn: "USDT",
+          tokenOut: "DOT",
+          amount: 50,
+        }),
       )
-
-      // The command should include the chat history
-      const callArgs = mockTriggerCREWorkflow.mock.calls[0][1]
-      expect(callArgs.command).toContain("User: Hello")
-      expect(callArgs.command).toContain("Agent: Hi there!")
-      expect(callArgs.command).toContain("What is my balance?")
     })
 
-    it("includes the system prompt in the CRE command", async () => {
+    it("does not stage trade when isTradeIntent is false", async () => {
       mockReadChatHistory.mockResolvedValue([])
-      mockTriggerCREWorkflow.mockResolvedValue({
-        success: true,
-        output: "Some AI response",
-        mode: "simulation",
+      mockChatWithGemini.mockResolvedValue({
+        action: "portfolio",
+        response: "Your portfolio is worth $1000",
+        isTradeIntent: false,
+        confidence: "high",
       })
 
-      await processChatMessage("Tell me about ETH", SHEET_ID)
+      await processChatMessage("Show me my portfolio", SHEET_ID)
 
-      const callArgs = mockTriggerCREWorkflow.mock.calls[0][1]
-      expect(callArgs.command).toContain("WalletSheets")
-      expect(callArgs.command).toContain("DeFi trading assistant")
+      expect(mockStagePendingTrade).not.toHaveBeenCalled()
     })
 
-    it("does not show the thinking indicator for AI messages", async () => {
-      mockReadChatHistory.mockResolvedValue([])
-      mockTriggerCREWorkflow.mockResolvedValue({
-        success: true,
-        output: "response",
-        mode: "simulation",
-      })
+    it("returns error when Gemini is not available", async () => {
+      mockIsGeminiAvailable.mockReturnValue(false)
 
-      await processChatMessage("Hello there", SHEET_ID)
+      const result = await processChatMessage("Hello there", SHEET_ID)
 
-      expect(mockSetChatThinking).not.toHaveBeenCalled()
+      expect(result.source).toBe("error")
+      expect(result.response).toContain("AI service is not configured")
     })
 
-    it("reads chat history with limit of 50", async () => {
+    it("returns error response when Gemini call fails", async () => {
       mockReadChatHistory.mockResolvedValue([])
-      mockTriggerCREWorkflow.mockResolvedValue({
-        success: true,
-        output: "response",
-        mode: "simulation",
-      })
+      mockChatWithGemini.mockRejectedValue(new Error("Gemini API error"))
 
-      await processChatMessage("What's the gas price?", SHEET_ID)
-
-      expect(mockReadChatHistory).toHaveBeenCalledWith(SHEET_ID, 50)
-    })
-
-    it("returns error response when CRE workflow fails (success=false)", async () => {
-      mockReadChatHistory.mockResolvedValue([])
-      mockTriggerCREWorkflow.mockResolvedValue({
-        success: false,
-        output: "",
-        error: "CRE service unavailable",
-        mode: "simulation",
-      })
-
-      const result = await processChatMessage("Buy 1 ETH", SHEET_ID)
+      const result = await processChatMessage("Buy DOT", SHEET_ID)
 
       expect(result.source).toBe("error")
       expect(result.role).toBe("Agent")
-      expect(result.response).toContain("trouble connecting")
-    })
-
-    it("returns error response when CRE output is empty", async () => {
-      mockReadChatHistory.mockResolvedValue([])
-      mockTriggerCREWorkflow.mockResolvedValue({
-        success: true,
-        output: "",
-        mode: "simulation",
-      })
-
-      const result = await processChatMessage("Tell me a joke", SHEET_ID)
-
-      expect(result.source).toBe("error")
       expect(result.response).toContain("trouble connecting")
     })
 
     it("logs the AI response to agent logs", async () => {
       mockReadChatHistory.mockResolvedValue([])
-      mockTriggerCREWorkflow.mockResolvedValue({
-        success: true,
-        output: "Great question about trading!",
-        mode: "simulation",
+      mockChatWithGemini.mockResolvedValue({
+        action: "info",
+        response: "Great question about DeFi!",
+        isTradeIntent: false,
+        confidence: "high",
       })
 
       await processChatMessage("Explain DeFi to me", SHEET_ID)
@@ -348,58 +362,6 @@ describe("processChatMessage", () => {
         undefined,
       )
     })
-
-    it("does not log to agent logs when CRE fails", async () => {
-      mockReadChatHistory.mockResolvedValue([])
-      mockTriggerCREWorkflow.mockResolvedValue({
-        success: false,
-        output: "",
-        error: "Timeout",
-        mode: "simulation",
-      })
-
-      await processChatMessage("Buy ETH", SHEET_ID)
-
-      // appendAgentLog should NOT be called for the "chat_response" action
-      // (it may be called for other things, but not for the response)
-      const chatResponseCalls = mockAppendAgentLog.mock.calls.filter(
-        (args) => args[1] === "chat_response"
-      )
-      expect(chatResponseCalls).toHaveLength(0)
-    })
-
-    it("builds prompt without history prefix when history is empty", async () => {
-      mockReadChatHistory.mockResolvedValue([])
-      mockTriggerCREWorkflow.mockResolvedValue({
-        success: true,
-        output: "Hello!",
-        mode: "simulation",
-      })
-
-      await processChatMessage("Hi", SHEET_ID)
-
-      const callArgs = mockTriggerCREWorkflow.mock.calls[0][1]
-      expect(callArgs.command).not.toContain("Chat history:")
-      expect(callArgs.command).toContain("User: Hi")
-    })
-
-    it("builds prompt with history prefix when history exists", async () => {
-      mockReadChatHistory.mockResolvedValue([
-        { role: "User", message: "First message" },
-      ])
-      mockTriggerCREWorkflow.mockResolvedValue({
-        success: true,
-        output: "Got it!",
-        mode: "simulation",
-      })
-
-      await processChatMessage("Second message", SHEET_ID)
-
-      const callArgs = mockTriggerCREWorkflow.mock.calls[0][1]
-      expect(callArgs.command).toContain("Chat history:")
-      expect(callArgs.command).toContain("User: First message")
-      expect(callArgs.command).toContain("User: Second message")
-    })
   })
 
   // =======================================================================
@@ -408,10 +370,11 @@ describe("processChatMessage", () => {
   describe("response shape", () => {
     it("always returns a valid ChatResponse object", async () => {
       mockReadChatHistory.mockResolvedValue([])
-      mockTriggerCREWorkflow.mockResolvedValue({
-        success: true,
-        output: "test output",
-        mode: "simulation",
+      mockChatWithGemini.mockResolvedValue({
+        action: "info",
+        response: "test output",
+        isTradeIntent: false,
+        confidence: "high",
       })
 
       const result: ChatResponse = await processChatMessage("test", SHEET_ID)
@@ -423,7 +386,7 @@ describe("processChatMessage", () => {
       expect(typeof result.response).toBe("string")
       expect(typeof result.role).toBe("string")
       expect(typeof result.timestamp).toBe("string")
-      expect(["slash-command", "ai", "error"]).toContain(result.source)
+      expect(["slash-command", "gemini-direct", "error"]).toContain(result.source)
     })
   })
 })

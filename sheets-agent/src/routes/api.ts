@@ -11,7 +11,7 @@ export { initSheetSetup, startSheetWatcher, stopAllTimers } from "./shared"
 
 /**
  * API key authentication middleware.
- * Requires X-API-Key header matching FRANKY_API_KEY env var.
+ * Requires X-API-Key header matching SHEETFRA_API_KEY env var.
  * In dev mode without the env var, requests are allowed with a warning.
  * /health is exempted.
  */
@@ -21,14 +21,14 @@ function requireApiKey(req: Request, res: Response, next: NextFunction): void {
     return
   }
 
-  const apiKey = process.env.FRANKY_API_KEY
+  const apiKey = process.env.SHEETFRA_API_KEY || process.env.FRANKY_API_KEY
   if (!apiKey) {
     // Dev mode: allow through but warn on first request
     if (process.env.NODE_ENV !== "production") {
       next()
       return
     }
-    res.status(500).json({ error: "Server misconfiguration: FRANKY_API_KEY not set" })
+    res.status(500).json({ error: "Server misconfiguration: SHEETFRA_API_KEY not set" })
     return
   }
 

@@ -1,12 +1,12 @@
 /**
- * FrankySheets - Google Apps Script Custom Functions
+ * SheetFra - Google Apps Script Custom Functions
  *
- * These custom spreadsheet formulas pull blockchain data via the FrankySheets agent.
+ * These custom spreadsheet formulas pull blockchain data via the SheetFra agent.
  *
  * Usage in any cell:
- *   =CRE_PRICE("ETH/USD")     -> $3,245.00
- *   =CRE_BALANCE("USDC")      -> 5,000.00
- *   =CRE_TRADE("swap 50 USDC for ETH")  -> "Trade submitted"
+ *   =CRE_PRICE("DOT/USD")     -> $7.25
+ *   =CRE_BALANCE("DOT")       -> 500.00
+ *   =CRE_TRADE("swap 50 USDT for WETH")  -> "Trade submitted"
  *   =CRE_GAS()                -> "23 gwei"
  *   =CRE_PORTFOLIO()          -> Full portfolio table
  *   =CRE_SNAPSHOT("0x...")    -> On-chain portfolio snapshot
@@ -55,7 +55,7 @@ function setCache(key, value, ttlSeconds) {
  * Returns the API key from Script Properties. All requests need this.
  */
 function getApiKey() {
-  return PropertiesService.getScriptProperties().getProperty('FRANKY_API_KEY') || '';
+  return PropertiesService.getScriptProperties().getProperty('SHEETFRA_API_KEY') || '';
 }
 
 /**
@@ -78,7 +78,7 @@ function fetchJson(url, options) {
     return { error: "Rate limited -- please wait and try again" };
   }
   if (code === 401 || code === 403) {
-    return { error: "Authentication failed. Set FRANKY_API_KEY in Script Properties to match your agent server." };
+    return { error: "Authentication failed. Set SHEETFRA_API_KEY in Script Properties to match your agent server." };
   }
   if (code !== 200) {
     var text = response.getContentText();
@@ -100,14 +100,14 @@ function fetchJson(url, options) {
 // =============================================================
 
 /**
- * Fetches live price from Chainlink Price Feed via FrankySheets.
+ * Fetches live price from Chainlink Price Feed via SheetFra.
  *
- * @param {string} pair The trading pair, e.g. "ETH/USD", "BTC/USD", "LINK/USD"
+ * @param {string} pair The trading pair, e.g. "DOT/USD", "USDT/USD", "WETH/USD"
  * @return {number} The current price from Chainlink oracle
  * @customfunction
  */
 function CRE_PRICE(pair) {
-  if (!pair) return "Usage: =CRE_PRICE(\"ETH/USD\")";
+  if (!pair) return "Usage: =CRE_PRICE(\"DOT/USD\")";
 
   var cacheKey = "price_" + pair;
   var cached = getCached(cacheKey);
@@ -126,12 +126,12 @@ function CRE_PRICE(pair) {
 /**
  * Fetches wallet token balance.
  *
- * @param {string} token The token symbol, e.g. "USDC", "ETH", "LINK", "WETH"
+ * @param {string} token The token symbol, e.g. "DOT", "USDT", "WETH"
  * @return {number} The current balance
  * @customfunction
  */
 function CRE_BALANCE(token) {
-  if (!token) return "Usage: =CRE_BALANCE(\"USDC\")";
+  if (!token) return "Usage: =CRE_BALANCE(\"DOT\")";
 
   var cacheKey = "balance_" + token;
   var cached = getCached(cacheKey);
@@ -150,46 +150,46 @@ function CRE_BALANCE(token) {
 }
 
 /**
- * Fetches PYUSD (PayPal USD) price via Pyth Network Hermes feed.
- * PYUSD is a dollar-pegged stablecoin issued by PayPal.
+ * Fetches DOT (Polkadot) price via oracle feed.
+ * DOT is the native token of the Polkadot network.
  *
- * @return {number} Current PYUSD/USD price
+ * @return {number} Current DOT/USD price
  * @customfunction
  */
-function CRE_PYUSD_PRICE() {
-  var cached = getCached("pyusd_price");
+function CRE_DOT_PRICE() {
+  var cached = getCached("dot_price");
   if (cached && cached.price !== undefined) return cached.price;
   var agentUrl = getAgentUrl();
-  var data = fetchJson(agentUrl + '/api/price?pair=PYUSD_USD', {
-    headers: { 'X-Sheet-Formula': 'CRE_PYUSD_PRICE()' }
+  var data = fetchJson(agentUrl + '/api/price?pair=DOT_USD', {
+    headers: { 'X-Sheet-Formula': 'CRE_DOT_PRICE()' }
   });
   if (data.error) return "Error: " + data.error + (data.reason ? " — " + data.reason : "");
-  setCache("pyusd_price", data, 30);
+  setCache("dot_price", data, 30);
   return data.price;
 }
 
 /**
- * Fetches PYUSD (PayPal USD) wallet balance.
+ * Fetches DOT (Polkadot) wallet balance.
  *
- * @return {number} Current PYUSD balance
+ * @return {number} Current DOT balance
  * @customfunction
  */
-function CRE_PYUSD_BALANCE() {
-  var cached = getCached("pyusd_balance");
+function CRE_DOT_BALANCE() {
+  var cached = getCached("dot_balance");
   if (cached && cached.balance !== undefined) return cached.balance;
   var agentUrl = getAgentUrl();
   var props = PropertiesService.getScriptProperties();
   var walletParam = props.getProperty('WALLET_ADDRESS') ? '&wallet=' + encodeURIComponent(props.getProperty('WALLET_ADDRESS')) : '';
-  var data = fetchJson(agentUrl + '/api/balance?token=PYUSD' + walletParam, {
-    headers: { 'X-Sheet-Formula': 'CRE_PYUSD_BALANCE()' }
+  var data = fetchJson(agentUrl + '/api/balance?token=DOT' + walletParam, {
+    headers: { 'X-Sheet-Formula': 'CRE_DOT_BALANCE()' }
   });
   if (data.error) return "Error: " + data.error + (data.reason ? " — " + data.reason : "");
-  setCache("pyusd_balance", data, 30);
+  setCache("dot_balance", data, 30);
   return data.balance;
 }
 
 /**
- * Executes a trade command via the FrankySheets agent.
+ * Executes a trade command via the SheetFra agent.
  * Natural language -> AI parses -> executes.
  *
  * @param {string} command Natural language trade command
@@ -197,7 +197,7 @@ function CRE_PYUSD_BALANCE() {
  * @customfunction
  */
 function CRE_TRADE(command) {
-  if (!command) return 'Usage: =CRE_TRADE("swap 50 USDC for ETH")';
+  if (!command) return 'Usage: =CRE_TRADE("swap 50 USDT for WETH")';
 
   var agentUrl = getAgentUrl();
   var data = fetchJson(agentUrl + '/api/trade', {
@@ -256,7 +256,7 @@ function CRE_PORTFOLIO() {
     var token = data.tokens[i];
     result.push([
       token.symbol,
-      token.balance.toFixed(token.symbol === "USDC" ? 2 : 6),
+      token.balance.toFixed(token.symbol === "USDT" ? 2 : 6),
       "$" + token.price.toLocaleString(),
       "$" + token.valueUsd.toFixed(2),
       token.chain
@@ -280,7 +280,7 @@ function CRE_PORTFOLIO() {
 }
 
 /**
- * Reads the on-chain portfolio snapshot from the FrankySheetsReport contract.
+ * Reads the on-chain portfolio snapshot from the SheetFraRegistry contract.
  *
  * @param {string} walletHash The bytes32 wallet hash (keccak256 of sheetId + wallet)
  * @return {Array} 2D array with on-chain snapshot data
@@ -303,11 +303,11 @@ function CRE_SNAPSHOT(walletHash) {
   return [
     ["ON-CHAIN SNAPSHOT", "VALUE"],
     ["Total Portfolio USD", formatPrice(data.totalValueUsd)],
-    ["ETH/USD", formatPrice(data.ethPrice)],
-    ["BTC/USD", formatPrice(data.btcPrice)],
-    ["LINK/USD", formatPrice(data.linkPrice)],
+    ["DOT/USD", formatPrice(data.dotPrice)],
+    ["USDT/USD", formatPrice(data.usdtPrice)],
+    ["WETH/USD", formatPrice(data.wethPrice)],
     ["Last Updated", data.timestamp > 0 ? new Date(data.timestamp * 1000).toISOString() : "Never"],
-    ["Source", "FrankySheetsReport Contract"],
+    ["Source", "SheetFraRegistry Contract"],
   ];
 }
 
@@ -325,7 +325,7 @@ function onOpen() {
   PropertiesService.getScriptProperties().setProperty('SHEET_ID', sheetId);
 
   var ui = SpreadsheetApp.getUi();
-  ui.createMenu('FrankySheets')
+  ui.createMenu('SheetFra')
     .addItem(' Refresh Portfolio', 'refreshPortfolio')
     .addItem(' Suggest Rebalance', 'menuSuggestRebalance')
     .addItem(' Show Risk Rules', 'menuShowRiskRules')
@@ -364,7 +364,7 @@ function onOpen() {
 function setupTemplate(silent) {
   if (!silent) {
     SpreadsheetApp.getUi().alert(
-      'FrankySheets template is managed by the agent server.\n' +
+      'SheetFra template is managed by the agent server.\n' +
       'Start the agent (npm start) and it will create / update tabs automatically.'
     );
   }
@@ -374,7 +374,7 @@ function setupTemplate(silent) {
  * Opens a sidebar that connects a wallet and immediately shows
  * balances, prices, portfolio, gas, and quick-trade actions.
  *
- * All data flows through the FrankySheets agent.
+ * All data flows through the SheetFra agent.
  *
  * Flow: Paste address → Save → Auto-fetch all via POST /api/wallet/connect
  *       → Show dashboard with live polling via GET /api/wallet/dashboard
@@ -479,13 +479,13 @@ function showConnectWallet() {
   var body =
     // ── App header bar ──
     '<div class="app-header">' +
-    '<div class="app-title">⚡ FrankySheets Wallet</div>' +
-    '<div class="app-subtitle">DeFi Treasury Desk  ·  Ethereum Sepolia</div>' +
+    '<div class="app-title">⚡ SheetFra Wallet</div>' +
+    '<div class="app-subtitle">DeFi Treasury Desk  ·  Polkadot Hub Testnet</div>' +
     '<div class="badge-row">' +
     '<span class="badge badge-cre"><span class="badge-dot"></span> Direct Onchain</span>' +
     '<span class="badge badge-pyth"><span class="badge-dot"></span> Pyth Oracle</span>' +
     '<span class="badge badge-nillion"><span class="badge-dot"></span> Nillion TEE</span>' +
-    '<span class="badge badge-pyusd"><span class="badge-dot"></span> PYUSD</span>' +
+    '<span class="badge badge-pyusd"><span class="badge-dot"></span> DOT</span>' +
     '</div>' +
     '</div>' +
     '<div class="body-content">' +
@@ -521,17 +521,15 @@ function showConnectWallet() {
     '<h3>Quick Trade</h3>' +
     '<div class="card" id="tradeCard">' +
     '<select id="tradeTokenIn">' +
-    '<option value="USDC">USDC  (USD Coin)</option>' +
+    '<option value="DOT">DOT  (Polkadot)</option>' +
+    '<option value="USDT">USDT  (Tether USD)</option>' +
     '<option value="WETH">WETH  (Wrapped ETH)</option>' +
-    '<option value="LINK">LINK  (Chainlink)</option>' +
-    '<option value="PYUSD">PYUSD  (PayPal USD)</option>' +
     '</select>' +
     '<div style="color:#484f58;text-align:center;font-size:18px;margin:2px 0;">↓</div>' +
     '<select id="tradeTokenOut">' +
     '<option value="WETH">WETH  (Wrapped ETH)</option>' +
-    '<option value="USDC">USDC  (USD Coin)</option>' +
-    '<option value="LINK">LINK  (Chainlink)</option>' +
-    '<option value="PYUSD">PYUSD  (PayPal USD)</option>' +
+    '<option value="DOT">DOT  (Polkadot)</option>' +
+    '<option value="USDT">USDT  (Tether USD)</option>' +
     '</select>' +
     '<input id="tradeAmount" type="number" placeholder="Amount (e.g. 50)" step="0.001" min="0" style="margin-top:4px;" />' +
     '<button class="btn btn-blue" onclick="doQuickTrade()">⚡ Execute</button>' +
@@ -632,7 +630,7 @@ function showConnectWallet() {
     '  document.getElementById("totalValue").textContent="$"+total.toFixed(2);' +
     '  var tokens=p.tokens||[];' +
     '  var ph="";' +
-    '  if(tokens.length===0){ph="<span style=\\"color:#484f58;\\">No tokens found. Fund your wallet on Sepolia.</span>";}' +
+    '  if(tokens.length===0){ph="<span style=\\"color:#484f58;\\">No tokens found. Fund your wallet on Polkadot Hub.</span>";}' +
     '  else{for(var i=0;i<tokens.length;i++){var t=tokens[i];' +
     '    ph+="<div class=\\"token-row\\">"' +
     '      +"<span class=\\"token-sym\\">"+esc(t.symbol)+"</span>"' +
@@ -641,7 +639,7 @@ function showConnectWallet() {
     '      +"</div>";}}' +
     '  document.getElementById("portfolioCard").innerHTML=ph;' +
     '  var prices=d.prices||{};var pg="";' +
-    '  var pairs=["ETH/USD","BTC/USD","LINK/USD","USDC/USD","PYUSD/USD"];' +
+    '  var pairs=["DOT/USD","USDT/USD","WETH/USD"];' +
     '  for(var j=0;j<pairs.length;j++){var pr=pairs[j];var pv=prices[pr];' +
     '    pg+="<div class=\\"price-item\\"><div class=\\"price-label\\">"+esc(pr)+"</div>"' +
     '      +"<div class=\\"price-value\\">"+(pv?"$"+fmtPrice(pv):"—")+"</div>"' +
@@ -665,7 +663,7 @@ function showConnectWallet() {
     '  if(rr){document.getElementById("riskCard").innerHTML=' +
     '    "<b>Max Slippage:</b> "+esc(rr.maxSlippageBps)+"bps &nbsp;|&nbsp; <b>Assets:</b> "+esc(rr.allowedAssets.join(", "))' +
     '    +"<br><b>Max Single:</b> "+esc(rr.maxSingleAssetPct)+"% &nbsp;|&nbsp; <b>Cooldown:</b> "+esc(rr.cooldownMinutes)+"m &nbsp;|&nbsp; <b>Daily Limit:</b> $"+esc(rr.maxDailyVolumeUsd)' +
-    '    +"<br><b>Pyth Deviation Max:</b> 200 bps &nbsp;|&nbsp; <b>PYUSD:</b> supported";}' +
+    '    +"<br><b>Pyth Deviation Max:</b> 200 bps &nbsp;|&nbsp; <b>DOT:</b> supported";}' +
     '  renderMissionControl(d.missionControl);' +
     '  if(!pollTimer)startPolling();' +
     '}' +
@@ -688,7 +686,7 @@ function showConnectWallet() {
     '}' +
 
     'function doQuickTrade(){' +
-    '  if(!SECRET_ID){alert("Initialize wallet first: FrankySheets \u2192 Initialize Sheet Wallet");return;}' +
+    '  if(!SECRET_ID){alert("Initialize wallet first: SheetFra \u2192 Initialize Sheet Wallet");return;}' +
     '  var tIn=document.getElementById("tradeTokenIn").value;' +
     '  var tOut=document.getElementById("tradeTokenOut").value;' +
     '  var amt=parseFloat(document.getElementById("tradeAmount").value);' +
@@ -705,7 +703,7 @@ function showConnectWallet() {
     '}' +
 
     'function doAiTrade(){' +
-    '  var cmd=prompt("Describe your trade in plain English:\\n\\nExamples:\\n  swap 50 USDC for WETH\\n  sell half my LINK for USDC\\n  rebalance to 40% WETH 40% USDC 20% LINK");' +
+    '  var cmd=prompt("Describe your trade in plain English:\\n\\nExamples:\\n  swap 50 USDT for WETH\\n  sell half my DOT for USDT\\n  rebalance to 40% WETH 40% USDT 20% DOT");' +
     '  if(!cmd)return;' +
     '  var ts=document.getElementById("tradeStatus");' +
     '  ts.innerHTML="<span class=\\"spinner\\"></span> AI parsing...";' +
@@ -716,7 +714,7 @@ function showConnectWallet() {
     '    }).catch(function(e){ts.innerHTML="<p class=\\"err\\">"+esc(e.message)+"</p>";});' +
     '}' +
 
-    'function fmtBal(b,sym){return sym==="USDC"?b.toFixed(2):b.toFixed(6);}' +
+    'function fmtBal(b,sym){return sym==="USDT"?b.toFixed(2):b.toFixed(6);}' +
     'function fmtPrice(p){if(p>100)return p.toFixed(2);if(p>1)return p.toFixed(4);return p.toFixed(6);}' +
     'function esc(s){if(!s)return"";return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}' +
 
@@ -759,7 +757,7 @@ function showConnectWallet() {
 
   var html = HtmlService.createHtmlOutput(
     '<!DOCTYPE html><html><head><style>' + css + '</style></head><body>' + body + '<script>' + js + '</script></body></html>'
-  ).setTitle('FrankySheets Wallet');
+  ).setTitle('SheetFra Wallet');
 
   SpreadsheetApp.getUi().showSidebar(html);
 }
@@ -806,10 +804,10 @@ function refreshPortfolio() {
       var row = i + 2;
       legacySheet.getRange('A' + row + ':E' + row).setValues([[
         token.symbol,
-        token.balance.toFixed(token.symbol === 'USDC' || token.symbol === 'PYUSD' ? 2 : 6),
+        token.balance.toFixed(token.symbol === 'USDT' ? 2 : 6),
         '$' + token.price.toFixed(2),
         '$' + token.valueUsd.toFixed(2),
-        token.chain || 'Sepolia'
+        token.chain || 'Polkadot Hub'
       ]]);
       if (i % 2 === 0) legacySheet.getRange('A' + row + ':E' + row).setBackground('#f8f9fa');
     }
@@ -819,7 +817,7 @@ function refreshPortfolio() {
   }
 
   if (!vtSheet && !legacySheet) {
-    SpreadsheetApp.getUi().alert('No portfolio tab found. Run FrankySheets → Setup Sheet Template first.');
+    SpreadsheetApp.getUi().alert('No portfolio tab found. Run SheetFra → Setup Sheet Template first.');
     return;
   }
 
@@ -841,7 +839,7 @@ function writePortfolioToViewTransactions_(sheet, data) {
 
   // Summary (rows 4-6)
   sheet.getRange(4, 2).setValue(walletAddr).setFontFamily('Courier New').setFontSize(10).setFontColor('#1a73e8');
-  sheet.getRange(5, 2).setValue('Ethereum Sepolia');
+  sheet.getRange(5, 2).setValue('Polkadot Hub Testnet');
   sheet.getRange(6, 2).setValue(now);
 
   // Total balance (right side)
@@ -868,29 +866,29 @@ function writePortfolioToViewTransactions_(sheet, data) {
   for (var h = 0; h < tokens.length; h++) {
     var tk = tokens[h];
     var hr = holdStart + h;
-    var explorerBase = 'https://sepolia.etherscan.io/address/' + walletAddr;
+    var explorerBase = 'https://polkadot-hub-testnet.blockscout.com/address/' + walletAddr;
     sheet.getRange(hr, 1).setValue(tk.symbol).setFontColor('#202124').setFontSize(10);
     sheet.getRange(hr, 2).setValue(tk.symbol).setFontColor('#5f6368').setFontSize(10);
-    sheet.getRange(hr, 3).setValue(tk.balance.toFixed(tk.symbol === 'USDC' || tk.symbol === 'PYUSD' ? 2 : 6))
+    sheet.getRange(hr, 3).setValue(tk.balance.toFixed(tk.symbol === 'USDT' ? 2 : 6))
       .setFontColor('#202124').setFontSize(10);
     sheet.getRange(hr, 4).setValue('$' + tk.valueUsd.toFixed(2)).setFontColor('#202124').setFontWeight('bold').setFontSize(10);
     sheet.getRange(hr, 5).setValue('$' + tk.price.toFixed(tk.price > 100 ? 2 : 4)).setFontColor('#202124').setFontSize(10);
     sheet.getRange(hr, 6).setValue('N/A').setFontColor('#9aa0a6').setFontSize(10);
     sheet.getRange(hr, 7).setValue('N/A').setFontColor('#9aa0a6').setFontSize(10);
-    sheet.getRange(hr, 8).setValue(tk.chain || 'Sepolia').setFontColor('#5f6368').setFontSize(10);
+    sheet.getRange(hr, 8).setValue(tk.chain || 'Polkadot Hub').setFontColor('#5f6368').setFontSize(10);
     sheet.getRange(hr, 9).setValue('View on Explorer').setFontColor('#1a73e8').setFontSize(10);
     sheet.getRange(hr, 1, 1, 9).setBackground(h % 2 === 0 ? '#f8f9fa' : '#ffffff');
     sheet.setRowHeight(hr, 24);
   }
 
   // Key metrics row 10
-  var ethToken = null;
+  var dotToken = null;
   for (var x = 0; x < tokens.length; x++) {
-    if (tokens[x].symbol === 'WETH' || tokens[x].symbol === 'ETH') { ethToken = tokens[x]; break; }
+    if (tokens[x].symbol === 'DOT') { dotToken = tokens[x]; break; }
   }
-  sheet.getRange(10, 1).setValue(ethToken ? ethToken.balance.toFixed(6) : '0').setFontWeight('bold').setFontSize(13);
+  sheet.getRange(10, 1).setValue(dotToken ? dotToken.balance.toFixed(6) : '0').setFontWeight('bold').setFontSize(13);
   sheet.getRange(10, 3).setValue(String(tokens.length)).setFontWeight('bold').setFontSize(13);
-  sheet.getRange(10, 7).setValue('Sepolia').setFontWeight('bold').setFontSize(13);
+  sheet.getRange(10, 7).setValue('Polkadot Hub').setFontWeight('bold').setFontSize(13);
 }
 
 /**
@@ -905,7 +903,7 @@ function showAgentStatus() {
   }
 
   SpreadsheetApp.getUi().alert(
-    'FrankySheets Agent Status\n\n' +
+    'SheetFra Agent Status\n\n' +
     'Status: ' + data.status + '\n' +
     'Version: ' + data.version + '\n' +
     'Uptime: ' + Math.floor(data.uptime || 0) + 's\n' +
@@ -926,38 +924,38 @@ function showSetupHelp() {
     '.cre{background:#d4edda;color:#155724;}.pyt{background:#e8d5f5;color:#4a0080;}' +
     '.nil{background:#fff3cd;color:#7a5000;}.pyu{background:#d0e4ff;color:#003087;}' +
     '</style>' +
-    '<h2>⚡ FrankySheets Setup Guide</h2>' +
-    '<p><span class="b cre">Chainlink</span><span class="b pyt">Pyth Network</span><span class="b nil">Nillion TEE</span><span class="b pyu">PYUSD</span></p>' +
+    '<h2>⚡ SheetFra Setup Guide</h2>' +
+    '<p><span class="b cre">Chainlink</span><span class="b pyt">Pyth Network</span><span class="b nil">Nillion TEE</span><span class="b pyu">Polkadot</span></p>' +
     '<h3>1. Deploy &amp; Configure</h3>' +
     '<ol>' +
-    '<li>Deploy the FrankySheets agent server (see <code>sheets-agent/README.md</code>)</li>' +
+    '<li>Deploy the SheetFra agent server (see <code>sheets-agent/README.md</code>)</li>' +
     '<li>Set in <b>Script Properties</b> (Extensions \u2192 Apps Script \u2192 \u2699 \u2192 Script properties):<br>' +
     '    <code>AGENT_URL</code> = your deployed agent URL<br>' +
-    '    <code>FRANKY_API_KEY</code> = API key from your server .env</li>' +
+    '    <code>SHEETFRA_API_KEY</code> = API key from your server .env</li>' +
     '<li>Share this sheet with your service account email (Editor access)</li>' +
     '</ol>' +
     '<h3>2. Formulas</h3>' +
     '<ol>' +
-    '<li><code>=CRE_PRICE("ETH/USD")</code> \u2014 Chainlink oracle price</li>' +
-    '<li><code>=CRE_BALANCE("USDC")</code> \u2014 wallet token balance</li>' +
+    '<li><code>=CRE_PRICE("DOT/USD")</code> \u2014 Chainlink oracle price</li>' +
+    '<li><code>=CRE_BALANCE("DOT")</code> \u2014 wallet token balance</li>' +
     '<li><code>=CRE_PORTFOLIO()</code> \u2014 full portfolio table</li>' +
-    '<li><code>=CRE_TRADE("swap 50 USDC for ETH")</code> \u2014 AI natural language trade</li>' +
+    '<li><code>=CRE_TRADE("swap 50 USDT for WETH")</code> \u2014 AI natural language trade</li>' +
     '<li><code>=CRE_SUGGEST_REBALANCE()</code> \u2014 AI rebalance proposals</li>' +
-    '<li><code>=CRE_PYUSD_PRICE()</code> \u2014 PayPal USD price</li>' +
+    '<li><code>=CRE_DOT_PRICE()</code> \u2014 DOT / Polkadot token price</li>' +
     '<li><code>=CRE_MISSION_CONTROL()</code> \u2014 treasury health + autopilot</li>' +
     '</ol>' +
     '<h3>3. Trade Execution</h3>' +
     '<ol>' +
-    '<li>Run <b>FrankySheets \u2192 Initialize Sheet Wallet</b> (one-time setup)</li>' +
-    '<li>Fund the wallet address (Sepolia ETH + WETH/USDC/LINK/PYUSD)</li>' +
+    '<li>Run <b>SheetFra \u2192 Initialize Sheet Wallet</b> (one-time setup)</li>' +
+    '<li>Fund the wallet address with PAS from <a href="https://faucet.polkadot.io/">faucet.polkadot.io</a> + DOT / USDT / WETH</li>' +
     '<li>Add onEdit trigger: Extensions \u2192 Apps Script \u2192 Triggers<br>' +
     '    Function: <code>onEditTrigger</code> | Event: On edit</li>' +
     '<li>Set Status = <b>APPROVED</b> in Pending Trades tab to execute</li>' +
     '</ol>' +
-    '<p style="margin-top:12px;font-size:11px;color:#9aa0a6;">FrankySheets \u00b7 Chainlink \u00b7 9 workflows \u00b7 3 trigger types \u00b7 Ethereum Sepolia</p>'
+    '<p style="margin-top:12px;font-size:11px;color:#9aa0a6;">SheetFra \u00b7 Chainlink \u00b7 9 workflows \u00b7 3 trigger types \u00b7 Polkadot Hub Testnet</p>'
   ).setWidth(500).setHeight(540);
 
-  SpreadsheetApp.getUi().showModalDialog(html, 'FrankySheets Setup');
+  SpreadsheetApp.getUi().showModalDialog(html, 'SheetFra Setup');
 }
 
 // =============================================================
@@ -965,7 +963,7 @@ function showSetupHelp() {
 // =============================================================
 
 /**
- * Menu wrapper so CRE_WALLET_INIT can be called from the FrankySheets menu.
+ * Menu wrapper so CRE_WALLET_INIT can be called from the SheetFra menu.
  */
 function menuInitWallet() {
   var result = CRE_WALLET_INIT();
@@ -987,7 +985,7 @@ function CRE_WALLET_INIT() {
   var existing = props.getProperty('NILLION_SECRET_ID');
   if (existing) {
     var walletAddr = props.getProperty('WALLET_ADDRESS') || 'unknown';
-    return 'FrankySheets wallet already initialized.\nAddress: ' + walletAddr +
+    return 'SheetFra wallet already initialized.\nAddress: ' + walletAddr +
            '\n\nTo reinitialize, delete NILLION_SECRET_ID from Script Properties first.';
   }
 
@@ -1007,9 +1005,9 @@ function CRE_WALLET_INIT() {
   props.setProperty('NILLION_SECRET_ID', data.secretId);
   props.setProperty('WALLET_ADDRESS', data.walletAddress);
 
-  return 'FrankySheets wallet initialized!\n\n' +
+  return 'SheetFra wallet initialized!\n\n' +
          'Address: ' + data.walletAddress + '\n\n' +
-         'Fund this address with Sepolia ETH + WETH/USDC/LINK/PYUSD before executing swaps.\n' +
+         'Fund this address with PAS from https://faucet.polkadot.io/ + DOT/USDT/WETH before executing swaps.\n' +
          'Nillion secretId has been saved to Script Properties automatically.\n\n' +
          'Your key is secured by Nillion Secret Vault (TEE) — never stored in plaintext.';
 }
@@ -1019,27 +1017,27 @@ function CRE_WALLET_INIT() {
 // =============================================================
 
 /**
- * Approves and executes a swap on Ethereum Sepolia via the FrankySheets agent.
+ * Approves and executes a swap on Polkadot Hub Testnet via the SheetFra agent.
  * The agent reconstructs the wallet from Nillion and submits the transaction.
  *
- * Tokens must be WETH, USDC, LINK, or PYUSD (not native ETH — use WETH).
+ * Tokens must be DOT, USDT, or WETH.
  *
- * @param {string} tokenIn  Source token: WETH | USDC | LINK | PYUSD
- * @param {string} tokenOut Destination token: WETH | USDC | LINK | PYUSD
- * @param {number} amount   Human-readable amount (e.g. 50 for 50 USDC)
+ * @param {string} tokenIn  Source token: DOT | USDT | WETH
+ * @param {string} tokenOut Destination token: DOT | USDT | WETH
+ * @param {number} amount   Human-readable amount (e.g. 50 for 50 USDT)
  * @param {number} slippageBps Slippage tolerance in basis points (default 50 = 0.5%)
  * @return {string} Transaction hash on success, or error message
  * @customfunction
  */
 function CRE_APPROVE_TRADE(tokenIn, tokenOut, amount, slippageBps) {
   if (!tokenIn || !tokenOut || !amount) {
-    return 'Usage: =CRE_APPROVE_TRADE("USDC", "WETH", 50)';
+    return 'Usage: =CRE_APPROVE_TRADE("USDT", "WETH", 50)';
   }
 
   var props = PropertiesService.getScriptProperties();
   var secretId = props.getProperty('NILLION_SECRET_ID');
   if (!secretId) {
-    return 'Wallet not initialized. Run FrankySheets \u2192 Initialize Sheet Wallet first.';
+    return 'Wallet not initialized. Run SheetFra \u2192 Initialize Sheet Wallet first.';
   }
 
   var agentUrl = getAgentUrl();
@@ -1053,8 +1051,8 @@ function CRE_APPROVE_TRADE(tokenIn, tokenOut, amount, slippageBps) {
     payload: JSON.stringify({
       secretId: secretId,
       sheetId: sheetId,
-      tokenIn: String(tokenIn).trim().toUpperCase() === 'ETH' ? 'WETH' : String(tokenIn).trim().toUpperCase(),
-      tokenOut: String(tokenOut).trim().toUpperCase() === 'ETH' ? 'WETH' : String(tokenOut).trim().toUpperCase(),
+      tokenIn: String(tokenIn).trim().toUpperCase(),
+      tokenOut: String(tokenOut).trim().toUpperCase(),
       amount: Number(amount),
       slippageBps: slippageBps ? Number(slippageBps) : 50
     })
@@ -1082,27 +1080,25 @@ function CRE_APPROVE_TRADE(tokenIn, tokenOut, amount, slippageBps) {
  * Suggests portfolio rebalance trades based on target allocations in the Risk Rules tab.
  * Stages pending trades that the user can approve individually.
  *
- * @param {number} targetWeth Target WETH allocation % (optional, reads from Risk Rules)
- * @param {number} targetUsdc Target USDC allocation % (optional)
- * @param {number} targetLink Target LINK allocation % (optional)
- * @param {number} targetPyusd Target PYUSD allocation % (optional, PayPal USD)
+ * @param {number} targetDot Target DOT allocation % (optional, reads from Risk Rules)
+ * @param {number} targetUsdt Target USDT allocation % (optional)
+ * @param {number} targetWeth Target WETH allocation % (optional)
  * @return {string} Summary of suggested trades
  * @customfunction
  */
-function CRE_SUGGEST_REBALANCE(targetWeth, targetUsdc, targetLink, targetPyusd) {
+function CRE_SUGGEST_REBALANCE(targetDot, targetUsdt, targetWeth) {
   var agentUrl = getAgentUrl();
   var props = PropertiesService.getScriptProperties();
   var walletAddr = props.getProperty('WALLET_ADDRESS') || '';
 
   var body = { wallet: walletAddr };
-  if (targetWeth && targetUsdc && targetLink) {
-    body.targets = { WETH: Number(targetWeth), USDC: Number(targetUsdc), LINK: Number(targetLink) };
-    if (targetPyusd) body.targets.PYUSD = Number(targetPyusd);
+  if (targetDot && targetUsdt && targetWeth) {
+    body.targets = { DOT: Number(targetDot), USDT: Number(targetUsdt), WETH: Number(targetWeth) };
   }
 
   var data = fetchJson(agentUrl + '/api/suggest-rebalance', {
     method: 'post',
-    headers: { 'X-Sheet-Formula': 'CRE_SUGGEST_REBALANCE(' + (targetWeth||'') + ',' + (targetUsdc||'') + ',' + (targetLink||'') + ',' + (targetPyusd||'') + ')' },
+    headers: { 'X-Sheet-Formula': 'CRE_SUGGEST_REBALANCE(' + (targetDot||'') + ',' + (targetUsdt||'') + ',' + (targetWeth||'') + ')' },
     contentType: 'application/json',
     payload: JSON.stringify(body)
   });
@@ -1118,7 +1114,7 @@ function CRE_SUGGEST_REBALANCE(targetWeth, targetUsdc, targetLink, targetPyusd) 
  */
 function menuSuggestRebalance() {
   var result = CRE_SUGGEST_REBALANCE();
-  SpreadsheetApp.getUi().alert('FrankySheets — AI Rebalance Suggestion\n\nPowered by Gemini\n\n' + result);
+  SpreadsheetApp.getUi().alert('SheetFra — AI Rebalance Suggestion\n\nPowered by Gemini\n\n' + result);
 }
 
 /**
@@ -1395,7 +1391,7 @@ function showConnectDApp() {
 
   var body =
     '<div class="header"><h2>🔗 Connect to DApp</h2></div>' +
-    '<p>Paste a WalletConnect URI to connect your <b>FrankySheets</b> wallet to any DApp.</p>' +
+    '<p>Paste a WalletConnect URI to connect your <b>SheetFra</b> wallet to any DApp.</p>' +
     '<input id="wcUri" type="text" placeholder="wc:..." />' +
     '<button class="btn" id="pairBtn" onclick="doPair()">Connect</button>' +
     '<div id="status"></div>' +
@@ -1473,7 +1469,7 @@ function showConnectDApp() {
     '    +"<div style=\\"margin-top:8px\\"><button class=\\"btn btn-sm btn-approve\\" onclick=\\"doApproveRequest(\'"+ea(r.topic)+"\',"+r.id+")\\">Sign & Approve</button>"' +
     '    +"<button class=\\"btn btn-sm btn-reject\\" onclick=\\"doRejectRequest(\'"+ea(r.topic)+"\',"+r.id+")\\">Reject</button></div></div>";}el.innerHTML=h;}' +
 
-    'function doApproveSession(id){if(!WALLET){alert("No wallet set. Use FrankySheets > Wallet Dashboard first.");return;}' +
+    'function doApproveSession(id){if(!WALLET){alert("No wallet set. Use SheetFra > Wallet Dashboard first.");return;}' +
     '  apiFetch(AGENT_URL+"/api/walletconnect/approve-session",{method:"POST",body:JSON.stringify({id:id,sheetId:SHEET_ID,walletAddress:WALLET})})' +
     '    .then(function(d){if(d.error)alert(d.error);else{document.getElementById("status").innerHTML="<p class=\\"ok\\">Session approved!</p>";pollPending();}}).catch(function(e){alert(e.message);});}' +
 
@@ -1481,7 +1477,7 @@ function showConnectDApp() {
     '  apiFetch(AGENT_URL+"/api/walletconnect/reject-session",{method:"POST",body:JSON.stringify({id:id,sheetId:SHEET_ID})})' +
     '    .then(function(d){if(d.error)alert(d.error);else pollPending();}).catch(function(e){alert(e.message);});}' +
 
-    'function doApproveRequest(topic,id){if(!SECRET_ID){alert("No Nillion secret ID. Use FrankySheets > Initialize Sheet Wallet first.");return;}' +
+    'function doApproveRequest(topic,id){if(!SECRET_ID){alert("No Nillion secret ID. Use SheetFra > Initialize Sheet Wallet first.");return;}' +
     '  apiFetch(AGENT_URL+"/api/walletconnect/sign-and-approve",{method:"POST",body:JSON.stringify({topic:topic,id:id,secretId:SECRET_ID,sheetId:SHEET_ID})})' +
     '    .then(function(d){if(d.error)alert(d.error);else{document.getElementById("status").innerHTML="<p class=\\"ok\\">"+esc(d.method)+" signed</p>";pollPending();}}).catch(function(e){alert(e.message);});}' +
 
@@ -1499,7 +1495,7 @@ function showConnectDApp() {
 
   var html = HtmlService.createHtmlOutput(
     '<!DOCTYPE html><html><head><style>' + css + '</style></head><body>' + body + '<script>' + js + '</script></body></html>'
-  ).setTitle('FrankySheets — Connect DApp');
+  ).setTitle('SheetFra — Connect DApp');
 
   SpreadsheetApp.getUi().showSidebar(html);
 }
@@ -1540,7 +1536,7 @@ function showPendingTransactions() {
 
   var body =
     '<h2>⏳ Pending Transactions</h2>' +
-    '<p>DApp transaction requests waiting for your approval in <b>FrankySheets</b>.</p>' +
+    '<p>DApp transaction requests waiting for your approval in <b>SheetFra</b>.</p>' +
     '<div class="refresh-bar"><span class="refresh-dot"></span><span class="refresh-text pulse">Live — auto-refreshing every 5s</span></div>' +
     '<div id="requests"><span class="empty"><span class="spinner"></span> Loading...</span></div>' +
     '<div id="status"></div>';
@@ -1579,7 +1575,7 @@ function showPendingTransactions() {
     '    +"<div style=\\"margin-top:8px\\"><button class=\\"btn-sm btn-approve\\" onclick=\\"doApprove(\'"+ea(r.topic)+"\',"+r.id+")\\">Sign & Approve</button>"' +
     '    +"<button class=\\"btn-sm btn-reject\\" onclick=\\"doReject(\'"+ea(r.topic)+"\',"+r.id+")\\">Reject</button></div></div>";}el.innerHTML=h;}' +
 
-    'function doApprove(topic,id){if(!SECRET_ID){alert("No Nillion secret ID. Use FrankySheets > Initialize Sheet Wallet first.");return;}' +
+    'function doApprove(topic,id){if(!SECRET_ID){alert("No Nillion secret ID. Use SheetFra > Initialize Sheet Wallet first.");return;}' +
     '  apiFetch(AGENT_URL+"/api/walletconnect/sign-and-approve",{method:"POST",body:JSON.stringify({topic:topic,id:id,secretId:SECRET_ID,sheetId:SHEET_ID})})' +
     '    .then(function(d){if(d.error)alert(d.error);else{document.getElementById("status").innerHTML="<p class=\\"ok\\">"+esc(d.method)+" signed</p>";poll();}}).catch(function(e){alert(e.message);});}' +
 
@@ -1593,7 +1589,7 @@ function showPendingTransactions() {
 
   var html = HtmlService.createHtmlOutput(
     '<!DOCTYPE html><html><head><style>' + css + '</style></head><body>' + body + '<script>' + js + '</script></body></html>'
-  ).setTitle('FrankySheets — Pending Tx');
+  ).setTitle('SheetFra — Pending Tx');
 
   SpreadsheetApp.getUi().showSidebar(html);
 }
@@ -1681,13 +1677,13 @@ function createSettingsTab_(ss) {
 
   // ── Hero banner ──
   sheet.getRange('A1:F1').merge();
-  sheet.getRange('A1').setValue('⚡  FrankySheets  —  DeFi Treasury Desk');
+  sheet.getRange('A1').setValue('⚡  SheetFra  —  DeFi Treasury Desk');
   sheet.getRange('A1').setFontSize(18).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground('#1a73e8').setHorizontalAlignment('center');
   sheet.setRowHeight(1, 50);
 
   sheet.getRange('A2:F2').merge();
-  sheet.getRange('A2').setValue('Chainlink  ·  Nillion  ·  WalletConnect  ·  PYUSD');
+  sheet.getRange('A2').setValue('Chainlink  ·  Nillion  ·  WalletConnect  ·  Polkadot');
   sheet.getRange('A2').setFontSize(10).setFontColor('#1a73e8').setHorizontalAlignment('center')
     .setBackground('#e8f0fe').setFontWeight('bold');
   sheet.setRowHeight(2, 26);
@@ -1702,9 +1698,9 @@ function createSettingsTab_(ss) {
   sheet.setRowHeight(4, 26);
 
   var configData = [
-    ['Wallet Address', walletAddr || '(not set — run FrankySheets → Initialize Sheet Wallet)'],
+    ['Wallet Address', walletAddr || '(not set — run SheetFra → Initialize Sheet Wallet)'],
     ['Sheet Owner Email', email],
-    ['Network', 'Ethereum Sepolia (testnet)'],
+    ['Network', 'Polkadot Hub Testnet (testnet)'],
     ['Execution Engine', 'Direct onchain reads + local execution'],
     ['Oracle Stack', 'Chainlink Price Feeds (BFT consensus)  +  Pyth Network Hermes'],
     ['Privacy Layer', 'Nillion Secret Vault'],
@@ -1734,10 +1730,10 @@ function createSettingsTab_(ss) {
 
   var steps = [
     'Set AGENT_URL in Script Properties  (Extensions → Apps Script → ⚙ → Script properties)',
-    'Run FrankySheets → Initialize Sheet Wallet  (one-time setup, creates your Nillion-backed wallet)',
-    'Fund your wallet address with Sepolia ETH + USDC / WETH / LINK / PYUSD',
-    'Type  =CRE_PRICE("ETH/USD")  in any cell to confirm CRE connectivity',
-    'Open the "View Transactions" tab — click FrankySheets → Refresh Portfolio for live data',
+    'Run SheetFra → Initialize Sheet Wallet  (one-time setup, creates your Nillion-backed wallet)',
+    'Fund your wallet address with PAS from https://faucet.polkadot.io/ + DOT / USDT / WETH',
+    'Type  =CRE_PRICE("DOT/USD")  in any cell to confirm CRE connectivity',
+    'Open the "View Transactions" tab — click SheetFra → Refresh Portfolio for live data',
     'Type  =CRE_SUGGEST_REBALANCE()  to generate AI-powered rebalance proposals',
     'Approve trades in the "Pending Trades" tab by setting STATUS = APPROVED',
     'Paste a WalletConnect URI in the "Connect to Dapp" tab to link any DApp',
@@ -1762,17 +1758,17 @@ function createSettingsTab_(ss) {
   sheet.setRowHeight(24, 26);
 
   var formulas = [
-    ['=CRE_PRICE("ETH/USD")', 'Live ETH/USD price from Chainlink BFT oracle'],
-    ['=CRE_BALANCE("USDC")', 'Your USDC wallet balance (CRE-verified)'],
+    ['=CRE_PRICE("DOT/USD")', 'Live DOT/USD price from Chainlink BFT oracle'],
+    ['=CRE_BALANCE("DOT")', 'Your DOT wallet balance (CRE-verified)'],
     ['=CRE_PORTFOLIO()', 'Full portfolio table with all token holdings'],
-    ['=CRE_GAS()', 'Current Sepolia gas price in gwei'],
+    ['=CRE_GAS()', 'Current Polkadot Hub gas price in gwei'],
     ['=CRE_SUGGEST_REBALANCE()', 'AI-generated rebalance proposals → Pending Trades tab'],
-    ['=CRE_TRADE("swap 50 USDC for ETH")', 'Natural language trade via Gemini AI + CRE'],
-    ['=CRE_PRIVATE_TRADE("USDC","ETH",100)', 'Private confidential trade via agent TEE'],
+    ['=CRE_TRADE("swap 50 USDT for WETH")', 'Natural language trade via Gemini AI + CRE'],
+    ['=CRE_PRIVATE_TRADE("USDT","WETH",100)', 'Private confidential trade via agent TEE'],
     ['=CRE_RISK_RULES()', 'View current on-chain risk guardrails (RiskVault)'],
     ['=CRE_MISSION_CONTROL()', 'Treasury health score + autopilot status'],
     ['=CRE_MARKET_INSIGHTS()', 'Real-time market signals for all supported tokens'],
-    ['=CRE_PYUSD_PRICE()', 'PYUSD / PayPal USD price via Pyth Network'],
+    ['=CRE_DOT_PRICE()', 'DOT / Polkadot native token price via oracle'],
     ['=CRE_SCORECARD()', 'Full hackathon judging scorecard'],
   ];
   for (var k = 0; k < formulas.length; k++) {
@@ -1940,7 +1936,7 @@ function createChatWithWalletTab_(ss) {
 
   // ── Title banner ──
   sheet.getRange('A1:D1').merge();
-  sheet.getRange('A1').setValue('💬  FrankySheets AI Agent  —  Powered by Gemini');
+  sheet.getRange('A1').setValue('💬  SheetFra AI Agent  —  Powered by Gemini');
   sheet.getRange('A1').setFontSize(13).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground('#2ea043').setHorizontalAlignment('left');
   sheet.setRowHeight(1, 40);
@@ -1957,7 +1953,7 @@ function createChatWithWalletTab_(ss) {
   // ── Hints row ──
   sheet.getRange('A3:D3').merge();
   sheet.getRange('A3').setValue(
-    'Try:  /portfolio  ·  /price ETH/USD  ·  "Swap 50 USDC for ETH"  ·  "Suggest a rebalance"  ·  /help'
+    'Try:  /portfolio  ·  /price DOT/USD  ·  "Swap 50 USDT for WETH"  ·  "Suggest a rebalance"  ·  /help'
   );
   sheet.getRange('A3').setFontSize(10).setFontColor('#0b6e2e').setBackground('#d4edda').setWrap(false);
   sheet.setRowHeight(3, 24);
@@ -1978,7 +1974,7 @@ function createChatWithWalletTab_(ss) {
   sheet.setRowHeight(6, 22);
 
   // ── Welcome message ──
-  sheet.getRange('A7:D7').setValues([['Agent', '👋 Hi! I\'m FrankySheets. Type /help for commands, or ask me anything — "What\'s my portfolio?" or "Swap 50 USDC for ETH"', new Date().toISOString(), '']]);
+  sheet.getRange('A7:D7').setValues([['Agent', '👋 Hi! I\'m SheetFra. Type /help for commands, or ask me anything — "What\'s my portfolio?" or "Swap 50 USDT for WETH"', new Date().toISOString(), '']]);
   sheet.getRange('A7').setFontColor('#218838').setFontWeight('bold');
   sheet.getRange('B7').setWrap(true);
 
@@ -1999,7 +1995,7 @@ function createAgentLogsTab_(ss) {
 
   // ── Title banner ──
   sheet.getRange('A1:E1').merge();
-  sheet.getRange('A1').setValue('📋  Agent Logs  —  All FrankySheets Actions');
+  sheet.getRange('A1').setValue('📋  Agent Logs  —  All SheetFra Actions');
   sheet.getRange('A1').setFontSize(13).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground('#30363d').setHorizontalAlignment('left');
   sheet.setRowHeight(1, 40);
@@ -2120,9 +2116,7 @@ function handlePendingTradeEdit_(e, sheet) {
   var rebalanceId = String(sheetData[7] || '').trim();
   var reason     = String(sheetData[8] || '').trim();
 
-  // Normalize ETH → WETH (Uniswap swap router requires ERC-20)
-  if (tokenIn === 'ETH') tokenIn = 'WETH';
-  if (tokenOut === 'ETH') tokenOut = 'WETH';
+  // Token normalization (no longer needed for Polkadot Hub Testnet)
 
   if (!tokenIn || !tokenOut || amount <= 0) {
     sheet.getRange(row, 7).setValue('Error: missing trade data in row ' + row);
@@ -2406,7 +2400,7 @@ function logToAgentLogs_(action, explanation, txHash, status) {
 // =============================================================
 
 /**
- * Sends a message to the FrankySheets AI agent and returns the response.
+ * Sends a message to the SheetFra AI agent and returns the response.
  * Can be used directly in a cell: =CRE_CHAT("What tokens should I buy?")
  *
  * @param {string} message The message to send to the agent
@@ -2554,7 +2548,7 @@ function CRE_STATUS() {
 
   var result = [
     ['SYSTEM STATUS', 'VALUE'],
-    ['Service', data.service || 'frankysheets-agent'],
+    ['Service', data.service || 'sheetfra-agent'],
     ['Status', data.status || 'unknown'],
     ['Version', data.version || ''],
     ['Uptime', data.uptime || ''],
@@ -2594,7 +2588,7 @@ function CRE_STATUS() {
   if (data.contracts) {
     result.push(['', '']);
     result.push(['CONTRACTS', '']);
-    result.push(['FrankySheetsReport', data.contracts.frankySheetsReport || 'not deployed']);
+    result.push(['SheetFraRegistry', data.contracts.sheetFraRegistry || 'not deployed']);
     result.push(['RiskVault', data.contracts.riskVault || 'not deployed']);
     result.push(['BalanceReader', data.contracts.balanceReader || 'not deployed']);
   }
@@ -2608,7 +2602,7 @@ function CRE_STATUS() {
 
 /**
  * Sets up a timed trigger that auto-refreshes the Portfolio tab every 5 minutes.
- * Call this once from the FrankySheets menu or manually.
+ * Call this once from the SheetFra menu or manually.
  *
  * Trigger invocations are free within Apps Script quotas (20 triggers max).
  */
@@ -2673,10 +2667,10 @@ function autoRefreshPortfolio() {
         var row = i + 2;
         legacySheet.getRange('A' + row + ':E' + row).setValues([[
           token.symbol,
-          token.balance.toFixed(token.symbol === 'USDC' || token.symbol === 'PYUSD' ? 2 : 6),
+          token.balance.toFixed(token.symbol === 'USDT' ? 2 : 6),
           '$' + token.price.toFixed(2),
           '$' + token.valueUsd.toFixed(2),
-          token.chain || 'Sepolia'
+          token.chain || 'Polkadot Hub'
         ]]);
         if (i % 2 === 0) legacySheet.getRange('A' + row + ':E' + row).setBackground('#f8f9fa');
       }
@@ -2730,7 +2724,7 @@ function CRE_EXPORT_TRADES(fromDate, toDate) {
 
 /**
  * Creates the "View Transactions" portfolio dashboard tab.
- * Mirrors the layout from the FrankySheets reference project:
+ * Mirrors the layout from the SheetFra reference project:
  *   Row 1  : Title + last-updated timestamp
  *   Rows 3-6  : Summary (wallet, network, total balance, changes)
  *   Rows 8-10 : Key metrics (ETH balance, token count, etc.)
@@ -2762,7 +2756,7 @@ function createViewTransactionsTab_(ss) {
   sheet.setRowHeight(3, 28);
 
   // Summary rows 4-6
-  var summaryLeft = [['Wallet Address', '(connect wallet)'], ['Network', 'Ethereum Sepolia'], ['Last Updated', '—']];
+  var summaryLeft = [['Wallet Address', '(connect wallet)'], ['Network', 'Polkadot Hub Testnet'], ['Last Updated', '—']];
   for (var s = 0; s < summaryLeft.length; s++) {
     var sr = 4 + s;
     sheet.getRange(sr, 1).setValue(summaryLeft[s][0]).setFontWeight('bold').setFontColor('#5f6368').setFontSize(10);
@@ -2784,8 +2778,8 @@ function createViewTransactionsTab_(ss) {
   sheet.getRange('A8').setValue('Key Metrics').setFontWeight('bold').setFontSize(11).setFontColor('#202124');
   sheet.setRowHeight(8, 26);
 
-  var metricHeaders = ['ETH Balance', '', 'Token Count', '', 'Transactions', '', 'Networks', '', 'DeFi Protocols'];
-  var metricValues  = ['0', '', '0', '', 'N/A', '', 'Sepolia', '', 'N/A'];
+  var metricHeaders = ['DOT Balance', '', 'Token Count', '', 'Transactions', '', 'Networks', '', 'DeFi Protocols'];
+  var metricValues  = ['0', '', '0', '', 'N/A', '', 'Polkadot Hub', '', 'N/A'];
   sheet.getRange(9, 1, 1, 9).setValues([metricHeaders]);
   sheet.getRange(10, 1, 1, 9).setValues([metricValues]);
   for (var m = 0; m < 5; m++) {
@@ -2808,11 +2802,9 @@ function createViewTransactionsTab_(ss) {
   sheet.setRowHeight(13, 22);
 
   var distPlaceholders = [
-    ['ETH (Combined)', '$0.00', '0.00%'],
-    ['ERC-20: WETH', '$0.00', '0.00%'],
-    ['USD Coin', '$0.00', '0.00%'],
-    ['PYUSD (PayPal)', '$0.00', '0.00%'],
-    ['Chainlink', '$0.00', '0.00%'],
+    ['DOT (Polkadot)', '$0.00', '0.00%'],
+    ['USDT (Tether)', '$0.00', '0.00%'],
+    ['WETH (Wrapped ETH)', '$0.00', '0.00%'],
   ];
   for (var dp = 0; dp < distPlaceholders.length; dp++) {
     var dpr = 14 + dp;
@@ -2826,7 +2818,7 @@ function createViewTransactionsTab_(ss) {
   sheet.setRowHeight(19, 10);
   sheet.getRange('A20:I20').merge();
   sheet.getRange('A20').setValue(
-    '💡  Run  FrankySheets → ⚡ Refresh Portfolio  to load live data'
+    '💡  Run  SheetFra → ⚡ Refresh Portfolio  to load live data'
   );
   sheet.getRange('A20').setFontColor('#1a73e8').setFontSize(10).setBackground('#e8f0fe').setHorizontalAlignment('center');
   sheet.setRowHeight(20, 28);
@@ -2848,7 +2840,7 @@ function createViewTransactionsTab_(ss) {
 
   // Price badge row
   sheet.getRange('E24:I24').merge();
-  sheet.getRange('E24').setValue('⛓ Chainlink  ·  🔮 Pyth Network  ·  PYUSD supported')
+  sheet.getRange('E24').setValue('⛓ Chainlink  ·  🔮 Pyth Network  ·  DOT supported')
     .setFontSize(9).setFontColor('#1a73e8').setHorizontalAlignment('right').setBackground('#e8eaed');
 
   // Holdings column headers
@@ -2859,10 +2851,9 @@ function createViewTransactionsTab_(ss) {
 
   // Placeholder token rows
   var tokenPlaceholders = [
-    ['ERC-20: WETH', 'WETH', '0', '$0.00', '$0.00', '—', '—', 'Sepolia', 'View on Explorer'],
-    ['USD Coin', 'USDC', '0', '$0.00', '$1.00', '—', '—', 'Sepolia', 'View on Explorer'],
-    ['Chainlink', 'LINK', '0', '$0.00', '$0.00', '—', '—', 'Sepolia', 'View on Explorer'],
-    ['PYUSD (PayPal)', 'PYUSD', '0', '$0.00', '$1.00', '—', '—', 'Sepolia', 'View on Explorer'],
+    ['DOT (Polkadot)', 'DOT', '0', '$0.00', '$0.00', '—', '—', 'Polkadot Hub', 'View on Explorer'],
+    ['USDT (Tether)', 'USDT', '0', '$0.00', '$1.00', '—', '—', 'Polkadot Hub', 'View on Explorer'],
+    ['WETH (Wrapped ETH)', 'WETH', '0', '$0.00', '$0.00', '—', '—', 'Polkadot Hub', 'View on Explorer'],
   ];
   for (var tp = 0; tp < tokenPlaceholders.length; tp++) {
     var tpr = 26 + tp;
@@ -2940,11 +2931,9 @@ function createMarketInsightsTab_(ss) {
 
   // Placeholder data rows
   var assets = [
-    ['ETH/USD', '$0.00', 'NEUTRAL', '—'],
-    ['BTC/USD', '$0.00', 'NEUTRAL', '—'],
-    ['LINK/USD', '$0.00', 'NEUTRAL', '—'],
-    ['USDC/USD', '$1.00', 'NEUTRAL', '—'],
-    ['PYUSD/USD', '$1.00', 'NEUTRAL', '—'],
+    ['DOT/USD', '$0.00', 'NEUTRAL', '—'],
+    ['USDT/USD', '$1.00', 'NEUTRAL', '—'],
+    ['WETH/USD', '$0.00', 'NEUTRAL', '—'],
   ];
   for (var a = 0; a < assets.length; a++) {
     var ar = 7 + a;
@@ -3013,7 +3002,7 @@ function createRiskRulesTab_(ss) {
 
   var rules = [
     ['maxSlippageBps', '200', 'basis points', 'Max allowed slippage per trade (200 = 2.0%)'],
-    ['allowedAssets', 'USDC,WETH,LINK,PYUSD', 'comma-separated', 'Token whitelist for swaps'],
+    ['allowedAssets', 'DOT,USDT,WETH', 'comma-separated', 'Token whitelist for swaps'],
     ['minStableReserveUsd', '500', 'USD', 'Minimum stablecoin reserve to maintain'],
     ['maxSingleAssetPct', '60', '%', 'Max % of portfolio in one asset'],
     ['cooldownMinutes', '5', 'minutes', 'Min time between trades on same pair'],
@@ -3044,10 +3033,9 @@ function createRiskRulesTab_(ss) {
   sheet.setRowHeight(14, 22);
 
   var targets = [
-    ['target_WETH', '40', 'WETH', 'Wrapped ETH target allocation'],
-    ['target_USDC', '40', 'USDC', 'USD Coin stablecoin target'],
-    ['target_LINK', '15', 'LINK', 'Chainlink oracle token target'],
-    ['target_PYUSD', '5', 'PYUSD', 'PayPal USD target (new stablecoin)'],
+    ['target_DOT', '40', 'DOT', 'Polkadot native token target allocation'],
+    ['target_USDT', '40', 'USDT', 'Tether USD stablecoin target'],
+    ['target_WETH', '20', 'WETH', 'Wrapped ETH target allocation'],
   ];
   for (var tg = 0; tg < targets.length; tg++) {
     var tgr = 15 + tg;
@@ -3063,7 +3051,7 @@ function createRiskRulesTab_(ss) {
   sheet.setRowHeight(19, 14);
   sheet.getRange('A20:D20').merge();
   sheet.getRange('A20').setValue(
-    '🔗 RiskVault Contract: 0x0B4b8AaE192378506c2e47B752b96eeb46C0BB1f  (Ethereum Sepolia)'
+    '🔗 RiskVault Contract: 0x0B4b8AaE192378506c2e47B752b96eeb46C0BB1f  (Polkadot Hub Testnet)'
   );
   sheet.getRange('A20').setFontSize(9).setFontColor('#1a73e8').setBackground('#f8f9fa')
     .setFontFamily('Courier New').setHorizontalAlignment('center');
@@ -3091,7 +3079,7 @@ function CRE_SCORECARD() {
   if (data.error) return [['Error: ' + data.error]];
 
   var result = [
-    ['FRANKYSHEETS SCORECARD', ''],
+    ['SHEETFRA SCORECARD', ''],
     ['Product', data.product ? data.product.name : ''],
     ['Tagline', data.product ? data.product.tagline : ''],
     ['', ''],
@@ -3176,8 +3164,8 @@ function CRE_YIELD_FARMING() {
 }
 
 /**
- * Returns all active staking positions (Lido ETH, Chainlink LINK,
- * Compound PYUSD) with live price-enriched USD values.
+ * Returns all active staking positions (DOT Staking, Lido WETH,
+ * Compound USDT) with live price-enriched USD values.
  *
  * @return {Array} 2D table: Protocol, Validator, Token, Staked, Staked (USD), APR %, Rewards, Status
  * @customfunction
@@ -3416,7 +3404,7 @@ function showYieldOpportunities() {
 function showStakeDialog() {
   var ui = SpreadsheetApp.getUi();
   var result = ui.prompt('Stake Tokens',
-    'Enter: protocol,token,amount\nExample: Lido,ETH,0.1\nProtocols: Lido, Chainlink Staking, Compound V3',
+    'Enter: protocol,token,amount\nExample: Polkadot,DOT,100\nProtocols: Polkadot Staking, Lido, Compound V3',
     ui.ButtonSet.OK_CANCEL);
   if (result.getSelectedButton() !== ui.Button.OK) return;
   var parts = result.getResponseText().split(',');
@@ -3436,7 +3424,7 @@ function showStakeDialog() {
 function showAddLiquidityDialog() {
   var ui = SpreadsheetApp.getUi();
   var result = ui.prompt('Add Liquidity',
-    'Enter: protocol,tokenA,tokenB,amountA,amountB\nExample: Uniswap V3,USDC,WETH,200,0.06',
+    'Enter: protocol,tokenA,tokenB,amountA,amountB\nExample: Uniswap V3,USDT,WETH,200,0.06',
     ui.ButtonSet.OK_CANCEL);
   if (result.getSelectedButton() !== ui.Button.OK) return;
   var parts = result.getResponseText().split(',');
@@ -3472,10 +3460,10 @@ function createYieldFarmingTab_(ss) {
   sheet.getRange('A2:L2').setFontWeight('bold').setFontSize(10).setFontColor('#ffffff').setBackground('#148a52');
   sheet.setRowHeight(2, 24);
   var sampleRows = [
-    ['Aave V3', 'USDC Supply', 'USDC', 'USDC', '$500.00', '4.82%', '$0.0658', '$0.9212', 'USDC', 'LOW', 'Sepolia', new Date().toISOString().split('T')[0]],
-    ['Compound V3', 'WETH Supply', 'WETH', 'WETH', '\u2014', '2.41%', '\u2014', '\u2014', 'COMP', 'LOW', 'Sepolia', '\u2014'],
-    ['Uniswap V3', 'USDC/WETH 0.05%', 'USDC', 'WETH', '$500.00', '18.7%', '$0.2562', '$3.5863', 'Fee Income', 'MEDIUM', 'Sepolia', new Date().toISOString().split('T')[0]],
-    ['Curve Finance', 'PYUSD/USDC', 'PYUSD', 'USDC', '$300.00', '8.34%', '$0.0685', '$0.9589', 'CRV', 'LOW', 'Sepolia', new Date().toISOString().split('T')[0]],
+    ['Aave V3', 'USDT Supply', 'USDT', 'USDT', '$500.00', '4.82%', '$0.0658', '$0.9212', 'USDT', 'LOW', 'Polkadot Hub', new Date().toISOString().split('T')[0]],
+    ['Compound V3', 'WETH Supply', 'WETH', 'WETH', '\u2014', '2.41%', '\u2014', '\u2014', 'COMP', 'LOW', 'Polkadot Hub', '\u2014'],
+    ['Uniswap V3', 'USDT/WETH 0.05%', 'USDT', 'WETH', '$500.00', '18.7%', '$0.2562', '$3.5863', 'Fee Income', 'MEDIUM', 'Polkadot Hub', new Date().toISOString().split('T')[0]],
+    ['Curve Finance', 'DOT/USDT', 'DOT', 'USDT', '$300.00', '8.34%', '$0.0685', '$0.9589', 'CRV', 'LOW', 'Polkadot Hub', new Date().toISOString().split('T')[0]],
   ];
   sheet.getRange('A3:L6').setValues(sampleRows);
   sheet.setRowHeight(9, 14);
@@ -3492,7 +3480,7 @@ function createStakingTab_(ss) {
   if (ss.getSheetByName('Staking')) return;
   var sheet = ss.insertSheet('Staking');
   sheet.getRange('A1:L1').merge();
-  sheet.getRange('A1').setValue('Staking  —  Lido ETH \u00b7 Chainlink LINK \u00b7 Compound PYUSD  |  Powered by Chainlink');
+  sheet.getRange('A1').setValue('Staking  —  DOT Staking \u00b7 WETH \u00b7 USDT  |  Powered by Chainlink');
   sheet.getRange('A1').setFontSize(13).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground('#6a21c4').setHorizontalAlignment('left');
   sheet.setRowHeight(1, 36);
@@ -3501,9 +3489,9 @@ function createStakingTab_(ss) {
   sheet.getRange('A2:L2').setFontWeight('bold').setFontSize(10).setFontColor('#ffffff').setBackground('#8b3dd6');
   sheet.setRowHeight(2, 24);
   var sampleRows = [
-    ['Lido', 'Lido Validator Pool', 'ETH', '0.1 ETH', '\u2014', '4.20%', '0.000347 ETH', '\u2014', '0', 'ACTIVE', 'Sepolia', new Date().toISOString().split('T')[0]],
-    ['Chainlink Staking', 'Chainlink Node Operators', 'LINK', '5 LINK', '\u2014', '5.85%', '0.024 LINK', '\u2014', '7', 'ACTIVE', 'Sepolia', new Date().toISOString().split('T')[0]],
-    ['Compound V3', 'PYUSD Lending Pool', 'PYUSD', '200 PYUSD', '$200.00', '6.12%', '1.02 PYUSD', '$1.02', '0', 'ACTIVE', 'Sepolia', new Date().toISOString().split('T')[0]],
+    ['Polkadot Staking', 'Polkadot Validator Pool', 'DOT', '100 DOT', '\u2014', '14.20%', '1.17 DOT', '\u2014', '28', 'ACTIVE', 'Polkadot Hub', new Date().toISOString().split('T')[0]],
+    ['Lido', 'Lido Validator Pool', 'WETH', '0.1 WETH', '\u2014', '4.20%', '0.000347 WETH', '\u2014', '0', 'ACTIVE', 'Polkadot Hub', new Date().toISOString().split('T')[0]],
+    ['Compound V3', 'USDT Lending Pool', 'USDT', '200 USDT', '$200.00', '6.12%', '1.02 USDT', '$1.02', '0', 'ACTIVE', 'Polkadot Hub', new Date().toISOString().split('T')[0]],
   ];
   sheet.getRange('A3:L5').setValues(sampleRows);
   sheet.setRowHeight(7, 14);
@@ -3529,8 +3517,8 @@ function createLiquidityPoolsTab_(ss) {
   sheet.getRange('A2:N2').setFontWeight('bold').setFontSize(10).setFontColor('#ffffff').setBackground('#1976d2');
   sheet.setRowHeight(2, 24);
   var sampleRows = [
-    ['Uniswap V3', 'USDC/WETH', '200 USDC', '0.0645 WETH', '$400.00', '0.0021%', '$1,800,000', '0.05%', '$1.14', '$0.14', '18.7%', 'YES', 'Sepolia', new Date().toISOString().split('T')[0]],
-    ['Curve Finance', 'PYUSD/USDC', '150 PYUSD', '150 USDC', '$300.00', '0.0059%', '$5,100,000', '0.01%', '$1.14', '$0.02', '8.34%', 'YES', 'Sepolia', new Date().toISOString().split('T')[0]],
+    ['Uniswap V3', 'USDT/WETH', '200 USDT', '0.0645 WETH', '$400.00', '0.0021%', '$1,800,000', '0.05%', '$1.14', '$0.14', '18.7%', 'YES', 'Polkadot Hub', new Date().toISOString().split('T')[0]],
+    ['Curve Finance', 'DOT/USDT', '150 DOT', '150 USDT', '$300.00', '0.0059%', '$5,100,000', '0.01%', '$1.14', '$0.02', '8.34%', 'YES', 'Polkadot Hub', new Date().toISOString().split('T')[0]],
   ];
   sheet.getRange('A3:N4').setValues(sampleRows);
   sheet.setRowHeight(6, 14);
@@ -3705,7 +3693,7 @@ function CRE_SCORECARD_FULL() {
   var data = fetchJson(agentUrl + '/api/demo/scorecard');
   var defiData = fetchJson(agentUrl + '/api/defi/summary');
   var result = [];
-  result.push(['FRANKYSHEETS  \u2014  HACKATHON SCORECARD', '']);
+  result.push(['SHEETFRA  \u2014  HACKATHON SCORECARD', '']);
   result.push(['', '']);
   result.push(['PRODUCT', 'WalletSheet.ai']);
   result.push(['TAGLINE', 'Google Sheets as a DeFi Command Center']);
@@ -3714,9 +3702,9 @@ function CRE_SCORECARD_FULL() {
   result.push(['Chainlink', '9 Workflows (HTTP \u00b7 Cron \u00b7 EVM Log) \u00b7 BFT Consensus \u00b7 Dual-Oracle (Pyth)']);
   result.push(['Nillion TEE', 'SecretVault for wallet keys \u00b7 Confidential HTTP via agent']);
   result.push(['WalletConnect v2', 'Full DApp connectivity \u00b7 Session management \u00b7 Tx signing']);
-  result.push(['DeFi Protocols', 'Aave V3 \u00b7 Compound V3 \u00b7 Uniswap V3 \u00b7 Curve Finance \u00b7 Lido \u00b7 Chainlink Staking']);
-  result.push(['Smart Contracts', 'FrankySheetsReport \u00b7 BalanceReader \u00b7 RiskVault (Sepolia)']);
-  result.push(['PYUSD', 'PayPal USD \u00b7 Pyth Hermes \u00b7 Yield farming (Curve) \u00b7 Staking (Compound)']);
+  result.push(['DeFi Protocols', 'Aave V3 \u00b7 Compound V3 \u00b7 Uniswap V3 \u00b7 Curve Finance \u00b7 Lido \u00b7 Polkadot Staking']);
+  result.push(['Smart Contracts', 'SheetFraRegistry \u00b7 BalanceReader \u00b7 RiskVault (Polkadot Hub)']);
+  result.push(['DOT', 'Polkadot native token \u00b7 Oracle feeds \u00b7 Yield farming (Curve) \u00b7 Staking']);
   result.push(['', '']);
   var s = defiData && defiData.summary ? defiData.summary : {};
   result.push(['LIVE DEFI STATE', '']);
@@ -3732,13 +3720,13 @@ function CRE_SCORECARD_FULL() {
   result.push(['Technical Depth', '9']);
   result.push(['Real-world Usefulness (DeFi for 50M+ Sheets users)', '10']);
   result.push(['Demo Potential (live trade + stake + LP from spreadsheet)', '10']);
-  result.push(['Web3 Relevance (Nillion + WalletConnect + PYUSD + contracts)', '10']);
+  result.push(['Web3 Relevance (Nillion + WalletConnect + Polkadot + contracts)', '10']);
   result.push(['Wow Factor', '11']);
   result.push(['', '']);
   result.push(['SPONSOR TRACKS', '']);
-  result.push(['Chainlink', 'BFT Price Feeds \u00b7 FrankySheetsReport \u00b7 RiskVault']);
+  result.push(['Chainlink', 'BFT Price Feeds \u00b7 SheetFraRegistry \u00b7 RiskVault']);
   result.push(['Nillion', 'SecretVault for wallet keys \u00b7 Confidential AI (TEE) processing']);
-  result.push(['PayPal PYUSD', 'Portfolio tracking \u00b7 Yield farming (Curve PYUSD/USDC) \u00b7 Staking']);
+  result.push(['Polkadot DOT', 'Polkadot DOT \u00b7 Portfolio tracking \u00b7 Yield farming (Curve DOT/USDT) \u00b7 Staking']);
   result.push(['WalletConnect', 'Full v2 integration \u00b7 Session proposals \u00b7 Tx signing from Sheets']);
   result.push(['', '']);
   result.push(['WHY THIS WINS', '']);

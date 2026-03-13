@@ -139,9 +139,9 @@ export interface SheetConfig {
 export interface SnapshotReadResponse {
   walletHash: string
   totalValueUsd: string
-  ethPrice?: string
-  btcPrice?: string
-  linkPrice?: string
+  dotPrice?: string
+  usdtPrice?: string
+  wethPrice?: string
   timestamp?: string
   snapshotWalletHash?: string
   source: string
@@ -153,7 +153,7 @@ export interface SnapshotReadResponse {
 
 export interface RiskRules {
   maxSlippageBps: number        // e.g. 200 = 2%
-  allowedAssets: string[]       // e.g. ["WETH","USDC","LINK"]
+  allowedAssets: string[]       // e.g. ["DOT","USDT","WETH"]
   minStableReserveUsd: number   // e.g. 500 — keep at least $500 in stables
   maxSingleAssetPct: number     // e.g. 60 — no single token > 60% of portfolio
   cooldownMinutes: number       // e.g. 5 — min minutes between executions
@@ -163,7 +163,7 @@ export interface RiskRules {
 
 export const DEFAULT_RISK_RULES: RiskRules = {
   maxSlippageBps: 200,
-  allowedAssets: ["WETH", "USDC", "LINK"],
+  allowedAssets: ["DOT", "USDT", "WETH"],
   minStableReserveUsd: 500,
   maxSingleAssetPct: 60,
   cooldownMinutes: 5,
@@ -263,7 +263,7 @@ export interface TradeMemo {
   tokenOut: string
   amount: string
   triggerSource: string          // "ai-trade-executor" | "rebalance" | "manual"
-  chainlinkPrice: string        // Chainlink price at time of trade
+  chainlinkPrice: string        // Oracle price at time of trade
   policyChecks: PolicyCheckResult[]
   driftBefore?: Record<string, number>  // token -> drift% before trade
   rationale: string             // human-readable explanation

@@ -95,9 +95,9 @@ app.use(apiRouter)
 // Root
 app.get("/", (_req, res) => {
   res.json({
-    name: "FrankySheets Sheets Gateway",
+    name: "SheetFra Sheets Gateway",
     description:
-      "Google Sheets-first gateway for FrankySheets integrations",
+      "Google Sheets-first DeFi gateway for Polkadot Hub",
     version: "1.0.0",
     architecture: {
       core: "sheets-first",
@@ -117,11 +117,9 @@ app.get("/", (_req, res) => {
       },
     },
     tracks: [
-      "DeFi & Tokenization",
-      "AI",
-      "Privacy",
-      "Risk & Compliance",
-      "Top 10 Projects",
+      "EVM Smart Contract",
+      "DeFi & Stablecoin",
+      "AI-powered dApps",
     ],
     integrations: {
       "Google Sheets": "Primary interaction and automation surface",

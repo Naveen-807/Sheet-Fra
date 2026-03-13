@@ -90,7 +90,7 @@ export async function enforceRiskRules(
 
 export async function estimateTradeUsdValue(token: string, amount: number): Promise<number> {
   const upperToken = token.toUpperCase()
-  if (upperToken === "USDC") return amount
+  if (upperToken === "USDT") return amount
 
   const pair = TOKEN_TO_PAIR[upperToken]
   if (!pair) return amount

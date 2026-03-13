@@ -2,6 +2,7 @@ import { google, sheets_v4 } from "googleapis"
 import fs from "fs"
 import path from "path"
 import { createLogger } from "../utils/logger"
+import { POLKADOT_HUB_TESTNET } from "../config/polkadot-hub"
 
 const log = createLogger("sheets")
 
@@ -301,11 +302,11 @@ const TAB_DEFINITIONS: TabDefinition[] = [
     headerFg: COLORS.ink,
     headers: ["", "", "", "", "", ""],
     sampleRows: [
-      ["FrankySheets Agent", "", "", "", "", ""],
+      ["SheetFra Agent", "", "", "", "", ""],
       ["Your message:", "", "Type your message in B3 and press Enter to send", "", "", ""],
       [],
       ["Chat History", "", "", "", "", ""],
-      ["Agent", "Hi. Ask me about your portfolio, prices, swaps, or say 'swap 50 USDC for WETH'.", "", "", "", ""],
+      ["Agent", "Hi. Ask me about your portfolio, prices, swaps, or say 'swap 50 USDT for DOT'.", "", "", "", ""],
     ],
     columnWidths: [140, 320, 240, 90, 90, 90],
     tabColor: COLORS.sage,
@@ -328,15 +329,15 @@ const TAB_DEFINITIONS: TabDefinition[] = [
     headers: ["RULE", "VALUE", "DESCRIPTION"],
     sampleRows: [
       ["max_slippage_bps", "200", "Maximum slippage tolerance in basis points (200 = 2%)"],
-      ["allowed_assets", "WETH,USDC,LINK", "Comma-separated list of tokens allowed for trading"],
+      ["allowed_assets", "DOT,USDT,WETH", "Comma-separated list of tokens allowed for trading"],
       ["min_stable_reserve_usd", "500", "Minimum USD value to keep in stablecoins"],
       ["max_single_asset_pct", "60", "Maximum % of portfolio in any single token"],
       ["cooldown_minutes", "5", "Minimum minutes between trade executions"],
       ["max_daily_volume_usd", "10000", "Maximum daily trading volume in USD"],
       ["max_drift_pct", "15", "Maximum allocation drift % before auto-rebalance triggers"],
-      ["target_WETH", "40", "Target allocation for WETH when generating rebalances"],
-      ["target_USDC", "40", "Target allocation for USDC when generating rebalances"],
-      ["target_LINK", "20", "Target allocation for LINK when generating rebalances"],
+      ["target_DOT", "40", "Target allocation for DOT when generating rebalances"],
+      ["target_USDT", "40", "Target allocation for USDT when generating rebalances"],
+      ["target_WETH", "20", "Target allocation for WETH when generating rebalances"],
     ],
     columnWidths: [220, 120, 420],
     tabColor: COLORS.red,
@@ -395,7 +396,7 @@ const TAB_DEFINITIONS: TabDefinition[] = [
     headerFg: COLORS.white,
     headers: ["TIMESTAMP", "TOKEN IN", "TOKEN OUT", "AMOUNT", "SLIPPAGE BPS", "STATUS", "TX HASH", "REBALANCE ID", "REASON"],
     sampleRows: [
-      [new Date().toISOString(), "USDC", "WETH", "50", "50", "PENDING", "", "", "Sample trade — set STATUS to APPROVED to execute"],
+      [new Date().toISOString(), "USDT", "DOT", "50", "50", "PENDING", "", "", "Sample trade — set STATUS to APPROVED to execute"],
     ],
     columnWidths: [180, 110, 110, 110, 120, 120, 200, 150, 260],
     tabColor: COLORS.coral,
@@ -484,10 +485,8 @@ const TAB_DEFINITIONS: TabDefinition[] = [
     headerFg: COLORS.white,
     headers: ["PROTOCOL", "POOL", "TOKEN A", "TOKEN B", "STAKED (USD)", "APY %", "DAILY REWARDS (USD)", "TOTAL EARNED (USD)", "REWARD TOKEN", "RISK", "CHAIN", "LAST UPDATED"],
     sampleRows: [
-      ["Aave V3", "USDC Supply", "USDC", "USDC", "$500.00", "4.82%", "$0.07", "$0.93", "USDC", "LOW", "Sepolia", new Date().toISOString().split("T")[0]],
-      ["Compound V3", "WETH Supply", "WETH", "WETH", "$—", "2.41%", "$—", "$—", "COMP", "LOW", "Sepolia", "—"],
-      ["Uniswap V3", "USDC/WETH 0.05%", "USDC", "WETH", "$500.00", "18.7%", "$0.26", "$3.64", "Fee Income", "MEDIUM", "Sepolia", new Date().toISOString().split("T")[0]],
-      ["Curve Finance", "PYUSD/USDC", "PYUSD", "USDC", "$300.00", "8.34%", "$0.07", "$0.96", "CRV", "LOW", "Sepolia", new Date().toISOString().split("T")[0]],
+      ["Hydration", "DOT/USDT", "DOT", "USDT", "$500.00", "4.82%", "$0.07", "$0.93", "HDX", "LOW", "Polkadot Hub", new Date().toISOString().split("T")[0]],
+      ["Hydration", "DOT/WETH", "DOT", "WETH", "$—", "2.41%", "$—", "$—", "HDX", "LOW", "Polkadot Hub", "—"],
     ],
     columnWidths: [130, 180, 90, 90, 140, 90, 180, 180, 120, 80, 90, 160],
     tabColor: { red: 0.06, green: 0.60, blue: 0.38 },
@@ -500,9 +499,8 @@ const TAB_DEFINITIONS: TabDefinition[] = [
     headerFg: COLORS.white,
     headers: ["PROTOCOL", "VALIDATOR", "TOKEN", "STAKED AMOUNT", "STAKED (USD)", "APR %", "REWARDS EARNED", "REWARDS (USD)", "UNBONDING (DAYS)", "STATUS", "CHAIN", "LAST UPDATED"],
     sampleRows: [
-      ["Lido", "Lido Validator Pool", "ETH", "0.1 ETH", "$—", "4.20%", "0.000347 ETH", "$—", "0", "ACTIVE", "Sepolia", new Date().toISOString().split("T")[0]],
-      ["Chainlink Staking", "Chainlink Node Operators", "LINK", "5 LINK", "$—", "5.85%", "0.024 LINK", "$—", "7", "ACTIVE", "Sepolia", new Date().toISOString().split("T")[0]],
-      ["Compound V3", "PYUSD Lending Pool", "PYUSD", "200 PYUSD", "$200.00", "6.12%", "1.02 PYUSD", "$1.02", "0", "ACTIVE", "Sepolia", new Date().toISOString().split("T")[0]],
+      ["Bifrost", "Bifrost vDOT Pool", "vDOT", "100 vDOT", "$—", "4.20%", "0.35 vDOT", "$—", "0", "ACTIVE", "Polkadot Hub", new Date().toISOString().split("T")[0]],
+      ["Polkadot Hub", "Polkadot Hub Validators", "DOT", "50 DOT", "$—", "5.85%", "0.24 DOT", "$—", "28", "ACTIVE", "Polkadot Hub", new Date().toISOString().split("T")[0]],
     ],
     columnWidths: [140, 200, 80, 130, 130, 80, 160, 120, 150, 100, 90, 160],
     tabColor: { red: 0.48, green: 0.31, blue: 0.72 },
@@ -515,8 +513,8 @@ const TAB_DEFINITIONS: TabDefinition[] = [
     headerFg: COLORS.white,
     headers: ["PROTOCOL", "PAIR", "TOKEN A AMT", "TOKEN B AMT", "TOTAL VALUE (USD)", "POOL SHARE %", "TVL (USD)", "FEE TIER", "FEES EARNED (USD)", "IL LOSS (USD)", "APY %", "IN RANGE", "CHAIN", "LAST UPDATED"],
     sampleRows: [
-      ["Uniswap V3", "USDC/WETH", "200 USDC", "0.065 WETH", "$400.00", "0.0021%", "$1,800,000", "0.05%", "$1.14", "$0.14", "18.7%", "YES", "Sepolia", new Date().toISOString().split("T")[0]],
-      ["Curve Finance", "PYUSD/USDC", "150 PYUSD", "150 USDC", "$300.00", "0.0059%", "$5,100,000", "0.01%", "$1.14", "$0.02", "8.34%", "YES", "Sepolia", new Date().toISOString().split("T")[0]],
+      ["Hydration Omnipool", "DOT/USDT", "200 DOT", "500 USDT", "$400.00", "0.0021%", "$1,800,000", "0.05%", "$1.14", "$0.14", "18.7%", "YES", "Polkadot Hub", new Date().toISOString().split("T")[0]],
+      ["Hydration Omnipool", "DOT/WETH", "150 DOT", "0.065 WETH", "$300.00", "0.0059%", "$5,100,000", "0.01%", "$1.14", "$0.02", "8.34%", "YES", "Polkadot Hub", new Date().toISOString().split("T")[0]],
     ],
     columnWidths: [130, 130, 120, 120, 150, 100, 130, 90, 150, 120, 80, 80, 90, 160],
     tabColor: { red: 0.07, green: 0.47, blue: 0.73 },
@@ -809,7 +807,7 @@ async function syncSettingsTab(spreadsheetId: string): Promise<void> {
     ["", "", "", ""],
     ["", "", "", ""],
     ["", "Hi there, welcome to", "", ""],
-    ["", "FrankySheets", "", ""],
+    ["", "SheetFra", "", ""],
     ["", "Google Sheets as a Wallet", "", ""],
   ]
 
@@ -869,7 +867,7 @@ async function syncChatWithWalletScaffold(spreadsheetId: string): Promise<void> 
   const sheets = await getSheetsClient()
   const values = [
     ["", "", "", "", "", ""],
-    ["FrankySheets Agent", "", "", "", "", ""],
+    ["SheetFra Agent", "", "", "", "", ""],
     ["Your message:", "", "Type your message in B3 and press Enter to send", "", "", ""],
     ["", "", "", "", "", ""],
     ["Chat History", "", "", "", "", ""],
@@ -897,17 +895,17 @@ async function syncAgentLogsScaffold(spreadsheetId: string): Promise<void> {
 async function syncViewTransactionsScaffold(spreadsheetId: string): Promise<void> {
   await updatePortfolioTabRich(spreadsheetId, {
     walletAddress: process.env.WALLET_ADDRESS || "0x0000000000000000000000000000000000000000",
-    network: "Ethereum Sepolia",
+    network: POLKADOT_HUB_TESTNET.name,
     totalValueUsd: "0",
     prices: {
-      ETH_USD: "0",
-      USDC_USD: "0",
-      LINK_USD: "0",
+      DOT_USD: "0",
+      USDT_USD: "0",
+      WETH_USD: "0",
     },
     balances: {
+      DOT: "0",
+      USDT: "0",
       WETH: "0",
-      USDC: "0",
-      LINK: "0",
     },
     timestamp: Date.now(),
   })
@@ -1036,32 +1034,25 @@ export async function updatePortfolioTab(
   const values = [
     ["TOKEN", "BALANCE", "PRICE", "USD VALUE", "CHAIN"],
     [
-      "ETH",
+      "DOT",
+      formatBalance(balances["DOT"], 10),
+      formatPrice(prices["DOT_USD"]),
+      computeUsd(balances["DOT"], prices["DOT_USD"], 10),
+      "Polkadot Hub",
+    ],
+    [
+      "USDT",
+      formatBalance(balances["USDT"], 6),
+      formatPrice(prices["USDT_USD"]),
+      computeUsd(balances["USDT"], prices["USDT_USD"], 6),
+      "Polkadot Hub",
+    ],
+    [
+      "WETH",
       formatBalance(balances["WETH"], 18),
-      formatPrice(prices["ETH_USD"]),
-      computeUsd(balances["WETH"], prices["ETH_USD"], 18),
-      "Sepolia",
-    ],
-    [
-      "USDC",
-      formatBalance(balances["USDC"], 6),
-      formatPrice(prices["USDC_USD"]),
-      computeUsd(balances["USDC"], prices["USDC_USD"], 6),
-      "Sepolia",
-    ],
-    [
-      "LINK",
-      formatBalance(balances["LINK"], 18),
-      formatPrice(prices["LINK_USD"]),
-      computeUsd(balances["LINK"], prices["LINK_USD"], 18),
-      "Sepolia",
-    ],
-    [
-      "BTC",
-      "---",
-      formatPrice(prices["BTC_USD"]),
-      "---",
-      "Sepolia",
+      formatPrice(prices["WETH_USD"]),
+      computeUsd(balances["WETH"], prices["WETH_USD"], 18),
+      "Polkadot Hub",
     ],
     [],
     [`TOTAL VALUE: ${totalFormatted}`, "", "", `Updated by Agent`, ""],
@@ -1099,7 +1090,7 @@ export async function updateTradesTab(
     ? trade.pair.split("->").map(s => s.trim())
     : [trade.pair, ""]
 
-  const explorerLink = trade.txHash ? `https://sepolia.etherscan.io/tx/${trade.txHash}` : ""
+  const explorerLink = trade.txHash ? `${POLKADOT_HUB_TESTNET.blockExplorer}/tx/${trade.txHash}` : ""
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
@@ -1545,7 +1536,7 @@ export async function syncDashboardTab(
 
   const values = [
     // Row 1-2: Title
-    ["⚡ FrankySheets Dashboard", "", "", "", "Last Updated", data.lastCRERun || new Date().toISOString(), "", ""],
+    ["⚡ SheetFra Dashboard", "", "", "", "Last Updated", data.lastCRERun || new Date().toISOString(), "", ""],
     [],
     // Row 3-4: Summary cards
     ["💰 Portfolio Value", data.portfolioValue || "$0.00", "", "🧠 Treasury Health", data.healthScore !== undefined ? `${data.healthScore}/100 ${data.healthBand || ""}`.trim() : "N/A", "", "🛡 Protected Edge", data.protectedAlpha || "No proofs yet"],
@@ -1556,16 +1547,16 @@ export async function syncDashboardTab(
     // Row 7: Chart data headers
     ["Asset", "Value (USD)", "% Share", "", "Metric", "Value"],
     // Row 8-10: Chart data rows
-    ["ETH", ethVal, pct(ethVal), "", "Critical Alerts", String(data.criticalAlerts ?? 0)],
-    ["USDC", usdcVal, pct(usdcVal), "", "Pending Trades", String(data.pendingTradesCount ?? 0)],
-    ["LINK", linkVal, pct(linkVal), "", "Execution Proofs", String(data.proofCount ?? 0)],
+    ["DOT", ethVal, pct(ethVal), "", "Critical Alerts", String(data.criticalAlerts ?? 0)],
+    ["USDT", usdcVal, pct(usdcVal), "", "Pending Trades", String(data.pendingTradesCount ?? 0)],
+    ["WETH", linkVal, pct(linkVal), "", "Execution Proofs", String(data.proofCount ?? 0)],
     [],
     // Row 12: Allocation bar (visual)
     ["Top Recommendation", data.topRecommendation || "Run a private quote to show execution proof and protected routing."],
     [
-      "ETH", ethVal > 0 ? "█".repeat(Math.max(1, Math.round((ethVal / Math.max(total, 1)) * 30))) : "",
-      "USDC", usdcVal > 0 ? "█".repeat(Math.max(1, Math.round((usdcVal / Math.max(total, 1)) * 30))) : "",
-      "LINK", linkVal > 0 ? "█".repeat(Math.max(1, Math.round((linkVal / Math.max(total, 1)) * 30))) : "",
+      "DOT", ethVal > 0 ? "█".repeat(Math.max(1, Math.round((ethVal / Math.max(total, 1)) * 30))) : "",
+      "USDT", usdcVal > 0 ? "█".repeat(Math.max(1, Math.round((usdcVal / Math.max(total, 1)) * 30))) : "",
+      "WETH", linkVal > 0 ? "█".repeat(Math.max(1, Math.round((linkVal / Math.max(total, 1)) * 30))) : "",
       "", data.workflowMode || getWorkflowModeSummary(),
     ],
   ]
@@ -2138,9 +2129,9 @@ export async function updatePortfolioTabRich(
   const timestamp = new Date(data.timestamp).toISOString()
 
   // Compute individual values for distribution
-  const ethUsd = computeUsd(balances["WETH"], prices["ETH_USD"], 18)
-  const usdcUsd = computeUsd(balances["USDC"], prices["USDC_USD"], 6)
-  const linkUsd = computeUsd(balances["LINK"], prices["LINK_USD"], 18)
+  const ethUsd = computeUsd(balances["DOT"], prices["DOT_USD"], 10)
+  const usdcUsd = computeUsd(balances["USDT"], prices["USDT_USD"], 6)
+  const linkUsd = computeUsd(balances["WETH"], prices["WETH_USD"], 18)
 
   const pctOf = (val: number) => totalNum > 0 ? `${((val / totalNum) * 100).toFixed(2)}%` : "0.00%"
 
@@ -2159,14 +2150,14 @@ export async function updatePortfolioTabRich(
     ["Last Updated", timestamp, "", "30d Change", "0.00%"],
     [],
     ["Key Metrics"],
-    ["ETH Balance", "", "Token Count", "", "Networks", "", "DeFi Protocols"],
-    [formatBalance(balances["WETH"], 18), "", String(tokenCount), "", data.network, "", "N/A"],
+    ["DOT Balance", "", "Token Count", "", "Networks", "", "DeFi Protocols"],
+    [formatBalance(balances["DOT"], 10), "", String(tokenCount), "", data.network, "", "N/A"],
     [],
     ["Distribution"],
     ["Asset", "Value (USD)", "% of Portfolio"],
-    ["ETH", `$${ethUsd.toFixed(2)}`, pctOf(ethUsd)],
-    ["USDC", `$${usdcUsd.toFixed(2)}`, pctOf(usdcUsd)],
-    ["LINK", `$${linkUsd.toFixed(2)}`, pctOf(linkUsd)],
+    ["DOT", `$${ethUsd.toFixed(2)}`, pctOf(ethUsd)],
+    ["USDT", `$${usdcUsd.toFixed(2)}`, pctOf(usdcUsd)],
+    ["WETH", `$${linkUsd.toFixed(2)}`, pctOf(linkUsd)],
     [],
     [],
     [],
@@ -2180,18 +2171,18 @@ export async function updatePortfolioTabRich(
     ["Token Holdings"],
     ["Token", "Symbol", "Balance", "USD Value", "Price (USD)", "24h Change", "7d Change", "Actions"],
     [
+      "Polkadot", "DOT", formatBalance(balances["DOT"], 10),
+      `$${ethUsd.toFixed(2)}`, formatPrice(prices["DOT_USD"]),
+      "—", "—", "View on Explorer",
+    ],
+    [
+      "Tether USD", "USDT", formatBalance(balances["USDT"], 6),
+      `$${usdcUsd.toFixed(2)}`, formatPrice(prices["USDT_USD"]),
+      "—", "—", "View on Explorer",
+    ],
+    [
       "Wrapped Ether", "WETH", formatBalance(balances["WETH"], 18),
-      `$${ethUsd.toFixed(2)}`, formatPrice(prices["ETH_USD"]),
-      "—", "—", "View on Explorer",
-    ],
-    [
-      "USD Coin", "USDC", formatBalance(balances["USDC"], 6),
-      `$${usdcUsd.toFixed(2)}`, formatPrice(prices["USDC_USD"]),
-      "—", "—", "View on Explorer",
-    ],
-    [
-      "Chainlink", "LINK", formatBalance(balances["LINK"], 18),
-      `$${linkUsd.toFixed(2)}`, formatPrice(prices["LINK_USD"]),
+      `$${linkUsd.toFixed(2)}`, formatPrice(prices["WETH_USD"]),
       "—", "—", "View on Explorer",
     ],
   ]
@@ -2492,7 +2483,7 @@ export async function appendStakingRow(
         "$0.00",
         "0",
         position.status,
-        "Sepolia",
+        "Polkadot Hub",
         new Date().toISOString(),
       ]],
     },
@@ -2533,7 +2524,7 @@ export async function appendLiquidityRow(
         "$0.00",
         `${position.apy.toFixed(2)}%`,
         "YES",
-        "Sepolia",
+        "Polkadot Hub",
         new Date().toISOString(),
       ]],
     },

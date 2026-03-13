@@ -1,13 +1,13 @@
 /**
- * Direct Gemini 2.0 Flash API client for FrankySheets.
+ * Direct Gemini 2.0 Flash API client for SheetFra.
  *
- * Used as the primary AI layer for natural-language DeFi operations.
- * Architecture: Gemini parses intent → CRE verifies → Nillion signs → chain settles.
+ * Used as the primary AI layer for natural-language DeFi operations on Polkadot Hub.
  *
  * Falls back gracefully when GEMINI_API_KEY is not set.
  */
 
 import { createLogger } from "../utils/logger"
+import { POLKADOT_HUB_TESTNET } from "../config/polkadot-hub"
 
 const log = createLogger("gemini")
 
@@ -90,35 +90,40 @@ export function isGeminiAvailable(): boolean {
 
 function buildSystemPrompt(context: GeminiContext): string {
   const lines: string[] = [
-    "You are FrankySheets — the world's most advanced AI DeFi treasury assistant, embedded directly in Google Sheets.",
-    "You are powered by Chainlink CRE (9 BFT-verified DON workflows), Pyth Network dual-oracle verification,",
-    "Nillion TEE for privacy-preserving key management, Uniswap V3 for execution, and Gemini AI for intelligence.",
+    "You are SheetFra — an AI DeFi treasury assistant for Polkadot Hub, embedded directly in Google Sheets.",
+    "You help users manage their portfolio, execute swaps, stake assets, and monitor DeFi positions on Polkadot Hub.",
     "",
     "CORE IDENTITY:",
-    "- You turn spreadsheet cells into verifiable DeFi operations",
-    "- Every trade you suggest is verified by Chainlink BFT consensus + Pyth dual-oracle before execution",
-    "- Your wallet keys are stored in Nillion's Secret Vault (never on disk)",
-    "- You support private trades via CRE ConfidentialHTTPClient (TEE-protected API keys)",
+    "- You turn spreadsheet cells into verifiable DeFi operations on Polkadot Hub",
+    "- Every trade you suggest goes through a user approval flow before execution",
+    "- Polkadot Hub is a unified chain with EVM compatibility, DOT staking, and governance",
+    `- Explorer: ${POLKADOT_HUB_TESTNET.blockExplorer}`,
     "",
-    "SUPPORTED TOKENS (Ethereum Sepolia):",
-    "- WETH (Wrapped ETH): 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
-    "- USDC: 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
-    "- LINK: 0x779877A7B0D9E8603169DdbD7836e478b4624789",
-    "- PYUSD (PayPal USD): 0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9",
+    "SUPPORTED TOKENS (Polkadot Hub Testnet):",
+    "- DOT: Native asset (PAS on testnet, 10 decimals) — the core Polkadot token",
+    "- USDT: Tether USD (ERC-20 on Polkadot Hub) — primary stablecoin",
+    "- WETH: Wrapped Ether (bridged via Snowbridge from Ethereum)",
     "",
     "DEFI CAPABILITIES:",
-    "- Execute swaps via Uniswap V3 (CRE-verified calldata)",
-    "- Stake ETH via Lido (4.2% APR), LINK via Chainlink Staking (5.85% APR), USDC/PYUSD via Compound",
-    "- Provide liquidity on Uniswap V3 USDC/WETH (18.7% APY) and Curve PYUSD/USDC (8.34% APY)",
-    "- Private trade discovery via 1inch + 0x APIs in CRE TEE (no strategy leakage)",
-    "- Portfolio rebalancing with AI-planned legs verified by CRE DON",
-    "- Cross-chain portfolio: Ethereum Sepolia + Avalanche Fuji",
+    "- Execute swaps via Hydration Omnipool (single-sided liquidity, MEV-resistant)",
+    "- Liquid staking via Bifrost (vDOT, ~12-15% APY)",
+    "- Provide liquidity on Hydration Omnipool pools",
+    "- DOT staking via Polkadot Hub native staking",
+    "- Portfolio rebalancing with AI-planned legs",
+    "",
+    "ECOSYSTEM CONTEXT:",
+    "- Polkadot Hub unifies DOT, staking, governance, and EVM in one chain",
+    "- Snowbridge enables Ethereum↔Polkadot bridging for assets like WETH",
+    "- Hydration is the primary DEX with Omnipool architecture (concentrated liquidity)",
+    "- Bifrost provides liquid staking derivatives (vDOT) for staked DOT",
+    "- Wallets: Talisman and SubWallet (EVM-compatible on Polkadot Hub)",
+    `- Faucet for testnet PAS: https://faucet.polkadot.io/`,
     "",
   ]
 
   if (context.walletAddress) {
     lines.push(`CONNECTED WALLET: ${context.walletAddress}`)
-    lines.push(`NETWORK: ${context.network || "Ethereum Sepolia"}`)
+    lines.push(`NETWORK: ${context.network || POLKADOT_HUB_TESTNET.name}`)
     lines.push("")
   }
 
@@ -126,7 +131,7 @@ function buildSystemPrompt(context: GeminiContext): string {
     lines.push("CURRENT PORTFOLIO:")
     lines.push(`  Total Value: $${context.portfolio.totalValueUsd.toFixed(2)}`)
     for (const t of context.portfolio.tokens) {
-      const bal = t.symbol === "USDC" || t.symbol === "PYUSD"
+      const bal = t.symbol === "USDT"
         ? t.balance.toFixed(2)
         : t.balance.toFixed(6)
       lines.push(`  ${t.symbol}: ${bal} ($${t.valueUsd.toFixed(2)})`)
@@ -135,7 +140,7 @@ function buildSystemPrompt(context: GeminiContext): string {
   }
 
   if (context.prices && Object.keys(context.prices).length > 0) {
-    lines.push("LIVE PRICES (Chainlink BFT consensus):")
+    lines.push("LIVE PRICES:")
     for (const [pair, price] of Object.entries(context.prices)) {
       if (price > 0) {
         lines.push(`  ${pair}: $${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
@@ -159,7 +164,7 @@ function buildSystemPrompt(context: GeminiContext): string {
 
   if (context.riskRules) {
     const r = context.riskRules
-    lines.push("ACTIVE RISK RULES (enforced by CRE RiskVault on-chain):")
+    lines.push("ACTIVE RISK RULES:")
     lines.push(`  Max Slippage: ${r.maxSlippageBps} bps (${(r.maxSlippageBps / 100).toFixed(2)}%)`)
     lines.push(`  Allowed Assets: ${r.allowedAssets.join(", ")}`)
     lines.push(`  Max Daily Volume: $${r.maxDailyVolumeUsd.toLocaleString()}`)
@@ -173,10 +178,10 @@ function buildSystemPrompt(context: GeminiContext): string {
   lines.push("1. Respond ONLY with a valid JSON object matching the required schema")
   lines.push("2. 'response' field: conversational, concise, actionable (1-3 sentences max)")
   lines.push("3. 'isTradeIntent': true ONLY if user explicitly wants to execute (words like 'swap', 'stake', 'buy', 'sell', 'trade', 'execute', 'do it')")
-  lines.push("4. For trade intents: extract tokenIn/tokenOut (normalize to WETH/USDC/LINK/PYUSD), amount precisely")
+  lines.push("4. For trade intents: extract tokenIn/tokenOut (normalize to DOT/USDT/WETH), amount precisely")
   lines.push("5. Always reference live prices when available")
-  lines.push("6. Suggest PYUSD for stable operations (PayPal USD integration)")
-  lines.push("7. Mention CRE BFT verification and Pyth dual-oracle when discussing trade safety")
+  lines.push("6. Suggest USDT for stable operations (primary stablecoin on Polkadot Hub)")
+  lines.push("7. When discussing trade safety, mention the approval flow and on-chain verification")
   lines.push("8. For portfolio questions without explicit trade intent: action='portfolio', isTradeIntent=false")
   lines.push("9. 'confidence': 'high' if clear intent, 'medium' if ambiguous, 'low' if unclear")
 
@@ -378,18 +383,18 @@ export async function askGemini(
 
 function normalizeTokenSymbol(token: string): string {
   const normalized = token.trim().toUpperCase()
-  // ETH is not ERC20-compatible with Uniswap V3 router — always use WETH
-  if (normalized === "ETH") return "WETH"
+  // PAS is the native currency on Polkadot Hub testnet — normalize to DOT
+  if (normalized === "PAS") return "DOT"
+  if (normalized === "POLKADOT") return "DOT"
   // Common aliases
   const aliases: Record<string, string> = {
-    "ETHEREUM": "WETH",
+    "TETHER": "USDT",
+    "USD_TETHER": "USDT",
+    "USDC": "USDT",        // redirect USDC requests to USDT on Polkadot Hub
     "WRAPPED_ETH": "WETH",
     "WRAPPED ETH": "WETH",
-    "USD_COIN": "USDC",
-    "CHAINLINK": "LINK",
-    "PAYPAL_USD": "PYUSD",
-    "PAYPAL USD": "PYUSD",
-    "PAY": "PYUSD",
+    "ETHEREUM": "WETH",
+    "ETH": "WETH",
   }
   return aliases[normalized] || normalized
 }
@@ -413,6 +418,6 @@ export function buildGeminiContext(
     defiSummary,
     riskRules,
     walletAddress,
-    network: "Ethereum Sepolia",
+    network: POLKADOT_HUB_TESTNET.name,
   }
 }

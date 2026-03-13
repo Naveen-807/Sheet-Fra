@@ -1,8 +1,10 @@
 /**
- * Rich terminal banner utilities for FrankySheets agent.
+ * Rich terminal banner utilities for SheetFra agent.
  * Prints human-readable, color-coded banners for key events so you can
  * follow every step in the terminal as the system runs.
  */
+
+import { POLKADOT_HUB_TESTNET } from "../config/polkadot-hub"
 
 // ── ANSI color codes ────────────────────────────────────────────────────────
 const R = "\x1b[0m"   // reset
@@ -27,18 +29,11 @@ function ts(): string {
   return new Date().toLocaleTimeString("en-US", { hour12: false })
 }
 
+function explorerTxUrl(txHash: string): string {
+  return `${POLKADOT_HUB_TESTNET.blockExplorer}/tx/${txHash}`
+}
+
 // ── Transaction hash banner ──────────────────────────────────────────────────
-/**
- * Prints a prominent banner every time a transaction is sent or confirmed.
- *
- * Example:
- * ╔══════════════════════════════════════════════════════════════════════╗
- * ║  ✅  TX CONFIRMED  ─  Swap USDC → WETH via Uniswap V3 (0.3% fee)  ║
- * ║  Hash    : 0xabc123...                                             ║
- * ║  Block   : 7654321                                                 ║
- * ║  Explorer: https://sepolia.etherscan.io/tx/0xabc123...            ║
- * ╚══════════════════════════════════════════════════════════════════════╝
- */
 export function printTxSentBanner(description: string, txHash: string): void {
   const W = 72
   console.log(`\n${YELLOW}${B}┌${line(W)}┐${R}`)
@@ -55,28 +50,17 @@ export function printTxConfirmedBanner(
   blockNumber: number | bigint,
 ): void {
   const W = 72
-  const explorerUrl = `https://sepolia.etherscan.io/tx/${txHash}`
   console.log(`\n${GREEN}${B}╔${line(W)}╗${R}`)
   console.log(`${GREEN}${B}║${R}  ${GREEN}${B}✅  TX CONFIRMED  ─  ${description}${R}`)
   console.log(`${GREEN}${B}╠${line(W)}╣${R}`)
   console.log(`${GREEN}${B}║${R}  ${B}Hash    :${R} ${GREEN}${txHash}${R}`)
   console.log(`${GREEN}${B}║${R}  ${B}Block   :${R} ${blockNumber}`)
-  console.log(`${GREEN}${B}║${R}  ${B}Explorer:${R} ${BLUE}${explorerUrl}${R}`)
+  console.log(`${GREEN}${B}║${R}  ${B}Explorer:${R} ${BLUE}${explorerTxUrl(txHash)}${R}`)
   console.log(`${GREEN}${B}║${R}  ${DIM}Time    : ${ts()}${R}`)
   console.log(`${GREEN}${B}╚${line(W)}╝${R}\n`)
 }
 
 // ── Sheet command banner ─────────────────────────────────────────────────────
-/**
- * Prints when a user types a command into the Google Sheet.
- *
- * Example:
- * ┌────────────────────────────────────────────────────────────────────┐
- * │  💬  SHEET COMMAND  ─  Chat with Wallet tab          [12:34:56]  │
- * ├────────────────────────────────────────────────────────────────────┤
- * │  User: "Swap 100 USDC for WETH"                                   │
- * └────────────────────────────────────────────────────────────────────┘
- */
 export function printSheetCommandBanner(source: string, message: string): void {
   const W = 72
   const title = `  💬  SHEET COMMAND  ─  ${source}`
@@ -101,9 +85,6 @@ export function printAgentReplyBanner(reply: string, source: string): void {
 }
 
 // ── Trade execution step banner ──────────────────────────────────────────────
-/**
- * Prints a numbered step during trade execution so you can follow along.
- */
 export function printTradeStep(step: number, total: number, label: string, detail?: string): void {
   const W = 72
   const badge = `[${step}/${total}]`
@@ -125,9 +106,6 @@ export function printRiskBlockBanner(reason: string): void {
 }
 
 // ── Webhook receipt banner ────────────────────────────────────────────────────
-/**
- * Prints when the agent receives a CRE webhook callback.
- */
 export function printWebhookBanner(
   endpoint: string,
   details: Record<string, string | number | boolean | undefined>,
@@ -152,18 +130,6 @@ export function printWebhookBanner(
 }
 
 // ── Execution summary banner ─────────────────────────────────────────────
-/**
- * Prints a summary of all transaction hashes from a single trade execution.
- *
- * Example:
- * ┌────────────────────────────────────────────────────────────────────────┐
- * │  📋  EXECUTION SUMMARY  ─  Swap USDC → WETH              [12:34:56]  │
- * ├────────────────────────────────────────────────────────────────────────┤
- * │  Status  : ✅ SUCCESS                                                 │
- * │  TX 1    : 0xabc123...  (approve)                                     │
- * │  TX 2    : 0xdef456...  (swap)                                        │
- * └────────────────────────────────────────────────────────────────────────┘
- */
 export function printExecutionSummaryBanner(
   description: string,
   txHashes: string[],
@@ -184,18 +150,13 @@ export function printExecutionSummaryBanner(
   console.log(`${color}${B}│${R}  ${B}Status   :${R} ${icon} ${label}`)
   txHashes.forEach((hash, i) => {
     const txLabel = `TX ${i + 1}`.padEnd(8)
-    const explorerUrl = `https://sepolia.etherscan.io/tx/${hash}`
     console.log(`${color}${B}│${R}  ${B}${txLabel} :${R} ${hash}`)
-    console.log(`${color}${B}│${R}           ${DIM}${explorerUrl}${R}`)
+    console.log(`${color}${B}│${R}           ${DIM}${explorerTxUrl(hash)}${R}`)
   })
   console.log(`${color}${B}└${line(W)}┘${R}\n`)
 }
 
 // ── Sheet command helper ─────────────────────────────────────────────────
-/**
- * Checks if the incoming request carries a sheet formula/command header
- * and prints the sheet command banner if so.
- */
 export function maybePrintSheetCommand(req: { headers: Record<string, string | string[] | undefined> }): void {
   const formula = req.headers["x-sheet-formula"] as string | undefined
   const command = req.headers["x-sheet-command"] as string | undefined
@@ -206,18 +167,6 @@ export function maybePrintSheetCommand(req: { headers: Record<string, string | s
 }
 
 // ── Transaction lifecycle banner ─────────────────────────────────────────────
-/**
- * Prints a full transaction lifecycle timeline showing every step from
- * sheet command through CRE simulate, webhook, signing, and confirmation.
- *
- * This is a standalone version for callers that build the step list externally.
- * The txTracker utility calls its own internal version automatically.
- *
- * @param description  short description of the trade (e.g. "100 USDC → WETH")
- * @param steps        ordered list of { label, time, detail? } entries
- * @param txHash       final on-chain tx hash (optional)
- * @param success      overall outcome
- */
 export function printTransactionLifecycleBanner(
   description: string,
   steps: Array<{ label: string; time: string; detail?: string }>,
@@ -248,9 +197,8 @@ export function printTransactionLifecycleBanner(
   console.log(`${color}${B}╠${"═".repeat(W)}╣${R}`)
   console.log(`${color}${B}║${R}  ${B}Status   :${R} ${color}${label}${R}`)
   if (txHash) {
-    const explorerUrl = `https://sepolia.etherscan.io/tx/${txHash}`
     console.log(`${color}${B}║${R}  ${B}Tx Hash  :${R} ${GREEN}${txHash}${R}`)
-    console.log(`${color}${B}║${R}  ${B}Explorer :${R} ${BLUE}${explorerUrl}${R}`)
+    console.log(`${color}${B}║${R}  ${B}Explorer :${R} ${BLUE}${explorerTxUrl(txHash)}${R}`)
   }
   console.log(`${color}${B}╚${"═".repeat(W)}╝${R}\n`)
 }
@@ -259,10 +207,11 @@ export function printTransactionLifecycleBanner(
 export function printStartupBanner(port: number | string): void {
   const W = 72
   console.log(`\n${CYAN}${B}╔${"═".repeat(W)}╗${R}`)
-  console.log(`${CYAN}${B}║${R}${CYAN}${B}  🚀  FrankySheets Agent  ─  DeFi Treasury in Google Sheets${" ".repeat(W - 58)}║${R}`)
+  console.log(`${CYAN}${B}║${R}${CYAN}${B}  🚀  SheetFra Agent  ─  DeFi Treasury on Polkadot Hub${" ".repeat(W - 54)}║${R}`)
   console.log(`${CYAN}${B}╠${"═".repeat(W)}╣${R}`)
   console.log(`${CYAN}${B}║${R}  ${B}Port      :${R} ${port}`)
-  console.log(`${CYAN}${B}║${R}  ${B}Network   :${R} Ethereum Sepolia`)
+  console.log(`${CYAN}${B}║${R}  ${B}Network   :${R} ${POLKADOT_HUB_TESTNET.name}`)
+  console.log(`${CYAN}${B}║${R}  ${B}Chain ID  :${R} ${POLKADOT_HUB_TESTNET.chainId}`)
   console.log(`${CYAN}${B}║${R}  ${B}Mode      :${R} ${process.env.JUDGE_MODE === "true" ? RED + "JUDGE (production)" + R : GREEN + "DEVELOPMENT" + R}`)
   console.log(`${CYAN}${B}║${R}  ${DIM}Started   : ${new Date().toISOString()}${R}`)
   console.log(`${CYAN}${B}╚${"═".repeat(W)}╝${R}\n`)

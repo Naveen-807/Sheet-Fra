@@ -1,0 +1,16 @@
+{
+  "name": "sheetfra-contracts",
+  "version": "1.0.0",
+  "description": "SheetFra on-chain registry for Polkadot Hub",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy": "hardhat run scripts/deploy.ts --network polkadotHub"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0",
+    "@openzeppelin/contracts": "^5.1.0",
+    "dotenv": "^16.4.0"
+  }
+}

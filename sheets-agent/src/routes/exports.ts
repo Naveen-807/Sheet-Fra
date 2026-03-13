@@ -139,7 +139,7 @@ router.get(
       ]
 
       res.setHeader("Content-Type", "text/csv; charset=utf-8")
-      res.setHeader("Content-Disposition", `attachment; filename="frankysheets-trades-${new Date().toISOString().slice(0, 10)}.csv"`)
+      res.setHeader("Content-Disposition", `attachment; filename="sheetfra-trades-${new Date().toISOString().slice(0, 10)}.csv"`)
       await completeExecutionRecord(requestId, {
         source: "api/export/trades",
         status: "COMPLETED",
@@ -234,7 +234,7 @@ router.get(
       ]
 
       res.setHeader("Content-Type", "text/csv; charset=utf-8")
-      res.setHeader("Content-Disposition", `attachment; filename="frankysheets-portfolio-${new Date().toISOString().slice(0, 10)}.csv"`)
+      res.setHeader("Content-Disposition", `attachment; filename="sheetfra-portfolio-${new Date().toISOString().slice(0, 10)}.csv"`)
       await completeExecutionRecord(requestId, {
         source: "api/export/portfolio",
         status: "COMPLETED",

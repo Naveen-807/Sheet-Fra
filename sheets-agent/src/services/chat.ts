@@ -23,6 +23,7 @@ import {
 } from "./gemini"
 import { getErrorMessage } from "../utils/errors"
 import { createLogger } from "../utils/logger"
+import { POLKADOT_HUB_TESTNET } from "../config/polkadot-hub"
 
 const log = createLogger("chat")
 
@@ -47,7 +48,7 @@ async function handleSlashCommand(message: string): Promise<string | null> {
 
   if (trimmed === "/help" || trimmed === "/commands") {
     return [
-      "FrankySheets AI — Available Commands:",
+      "SheetFra AI — Available Commands:",
       "",
       "Portfolio & Market",
       "  /balance <token>      Not available in sheets-only mode",
@@ -56,6 +57,11 @@ async function handleSlashCommand(message: string): Promise<string | null> {
       "  /portfolio            Not available in sheets-only mode",
       "  /risk                 Show current risk rules",
       "  /status               Show agent status",
+      "",
+      "Polkadot Hub",
+      "  /polkadot             Polkadot ecosystem info",
+      "  /hub-status           Polkadot Hub network info",
+      "  /dot-price            DOT/USD price query",
       "",
       "Trading",
       "  /trade <command>      Natural-language trade staging",
@@ -100,11 +106,44 @@ async function handleSlashCommand(message: string): Promise<string | null> {
   if (trimmed === "/status") {
     const geminiStatus = isGeminiAvailable() ? "Configured" : "Not configured"
     return [
-      "FrankySheets Agent Status:",
+      "SheetFra Agent Status:",
       "  Server: Running",
       `  Gemini AI: ${geminiStatus}`,
+      `  Network: ${POLKADOT_HUB_TESTNET.name}`,
+      `  Chain ID: ${POLKADOT_HUB_TESTNET.chainId}`,
       "  Mode: Sheets-only",
     ].join("\n")
+  }
+
+  if (trimmed === "/polkadot") {
+    return [
+      "Polkadot Ecosystem Overview:",
+      "",
+      "  Polkadot Hub — Unified chain with EVM compatibility, DOT staking & governance",
+      "  Hydration — Primary DEX with Omnipool (single-sided liquidity, MEV-resistant)",
+      "  Bifrost — Liquid staking (vDOT ~12-15% APY)",
+      "  Snowbridge — Ethereum↔Polkadot bridge for WETH and other assets",
+      "",
+      "  Supported tokens: DOT, USDT, WETH",
+      "  Wallets: Talisman, SubWallet (EVM-compatible)",
+      `  Explorer: ${POLKADOT_HUB_TESTNET.blockExplorer}`,
+      "  Faucet: https://faucet.polkadot.io/",
+    ].join("\n")
+  }
+
+  if (trimmed === "/hub-status") {
+    return [
+      "Polkadot Hub Testnet Info:",
+      `  Name: ${POLKADOT_HUB_TESTNET.name}`,
+      `  Chain ID: ${POLKADOT_HUB_TESTNET.chainId}`,
+      `  RPC: ${POLKADOT_HUB_TESTNET.rpcUrl}`,
+      `  Explorer: ${POLKADOT_HUB_TESTNET.blockExplorer}`,
+      `  Native Currency: ${POLKADOT_HUB_TESTNET.nativeCurrency.symbol} (${POLKADOT_HUB_TESTNET.nativeCurrency.decimals} decimals)`,
+    ].join("\n")
+  }
+
+  if (trimmed === "/dot-price") {
+    return null  // fall through to Gemini with DOT price query
   }
 
   return null
@@ -113,7 +152,7 @@ async function handleSlashCommand(message: string): Promise<string | null> {
 async function buildGeminiContextForChat(sheetId: string): Promise<GeminiContext> {
   const context: GeminiContext = {
     walletAddress: process.env.WALLET_ADDRESS || undefined,
-    network: "Sheets-only",
+    network: POLKADOT_HUB_TESTNET.name,
   }
 
   try {
@@ -159,8 +198,8 @@ async function maybeStageTradeIntent(
     return false
   }
 
-  const tokenIn = intent.tokenIn.toUpperCase() === "ETH" ? "WETH" : intent.tokenIn.toUpperCase()
-  const tokenOut = intent.tokenOut.toUpperCase() === "ETH" ? "WETH" : intent.tokenOut.toUpperCase()
+  const tokenIn = intent.tokenIn.toUpperCase() === "PAS" ? "DOT" : intent.tokenIn.toUpperCase()
+  const tokenOut = intent.tokenOut.toUpperCase() === "PAS" ? "DOT" : intent.tokenOut.toUpperCase()
 
   try {
     await stagePendingTrade(sheetId, {

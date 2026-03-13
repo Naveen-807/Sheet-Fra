@@ -1,7 +1,7 @@
 {
-  "name": "frankysheets-agent",
+  "name": "sheetfra-agent",
   "version": "1.0.0",
-  "description": "FrankySheets Google Sheets Agent -- sheets-first integration layer",
+  "description": "SheetFra Google Sheets Agent -- DeFi treasury on Polkadot Hub",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
