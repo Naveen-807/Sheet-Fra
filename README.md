@@ -1,52 +1,150 @@
-# SheetFra — Your Spreadsheet as a Polkadot DeFi Control Plane
+# SheetFra
 
-**Polkadot Solidity Hackathon 2026 | Track 1: EVM Smart Contract — DeFi & AI-powered dApps**
+> **Your spreadsheet IS the Polkadot DeFi control plane.**
+
+**TL;DR:** [Demo Video](#demo-materials) | [Live Sheet Template](#quick-start) | [Architecture](#architecture)
 
 ---
 
-## What is SheetFra?
+## Problem
 
-SheetFra turns Google Sheets into a fully functional DeFi control plane on Polkadot Hub. Users manage portfolios, stage trades, and enforce risk rules directly from a spreadsheet interface they already know, powered by Gemini AI for natural-language interaction. No custom frontend required — your spreadsheet _is_ the dApp.
+Treasurers and DAOs live in spreadsheets. DeFi lives in browser extensions and custom frontends. The result: finance teams copy-paste between sheets and dApps, lose audit trails, and can't enforce risk rules where they already work. No existing Polkadot tool bridges this gap.
+
+## Solution
+
+SheetFra embeds Polkadot Hub DeFi directly into Google Sheets. Users manage portfolios, stage trades via AI chat, enforce risk limits, and verify every action on-chain — all without leaving their spreadsheet. Gemini AI interprets natural-language commands; OpenZeppelin-secured contracts provide an immutable audit trail; and the XCM precompile enables cross-chain visibility.
+
+---
+
+## SheetFra vs Traditional dApp
+
+| | **SheetFra** | **Traditional dApp** |
+|---|---|---|
+| **Interface** | Google Sheets (already open) | Custom web app / browser extension |
+| **Learning curve** | Zero — everyone knows spreadsheets | High — new UI per protocol |
+| **Approval flow** | Cell-based: review in sheet, then approve | Transaction popup with hex data |
+| **Audit trail** | Sheet history + on-chain registry | On-chain only |
+| **AI assistant** | Built-in Gemini chat in the sheet | None or separate tool |
+| **Risk rules** | Editable in a sheet tab | Hard-coded or absent |
+| **Multi-user** | Google Sheets sharing & permissions | Wallet-level only |
+
+---
+
+## Track & Sponsor Fit
+
+### Track 1: EVM Smart Contract — DeFi & AI-powered dApps
+- **AI-powered dApp**: Gemini 2.0 Flash processes natural-language DeFi commands with structured JSON output, portfolio context, and trade intent extraction
+- **DeFi / Stablecoin**: USDT-first treasury management with stablecoin reserve monitoring, swap staging, risk guardrails, and portfolio rebalancing on Polkadot Hub
+- **OpenZeppelin**: `SheetFraRegistry.sol` uses `Ownable`, `ReentrancyGuard`, `Pausable` for on-chain audit logging of every sheet action
+
+### Track 2: PVM — Precompiles & Polkadot Native
+- **XCM Precompile**: `SheetFraXcmBridge.sol` calls the XCM precompile at `0xA0000` for cross-chain message weighing and execution — Solidity talking directly to Polkadot's core interoperability primitive
+- **Polkadot Native Assets**: Portfolio displays DOT (native), USDT, and WETH with Polkadot Hub asset awareness
+- **Precompile integration**: Direct use of `weighMessage()` and `execute()` from the XCM precompile interface
+
+---
+
+## Features
+
+- **AI chat (Gemini 2.0 Flash)** — Natural-language DeFi commands: "swap 10 USDT for DOT", "what's my stablecoin reserve?", "rebalance to 40% USDT"
+- **Spreadsheet-native portfolio** — Live balances for DOT, USDT, WETH from Polkadot Hub, displayed in familiar sheet format
+- **Approve-before-execute** — Every trade is staged in a Pending Trades tab; user reviews and explicitly approves before on-chain execution
+- **Risk guardrails** — Configurable slippage limits, daily volume caps, trade cooldowns, concentration limits, minimum stablecoin reserve — all editable in a sheet tab
+- **Stablecoin Reserve monitoring** — Dedicated tab tracking USDT/USDC reserves against target thresholds with alerts
+- **On-chain audit log** — `SheetFraRegistry.sol` records every swap/stake/approve/XCM action with sheet-to-wallet linkage
+- **XCM cross-chain bridge** — `SheetFraXcmBridge.sol` enables cross-chain asset visibility and operations via Polkadot XCM precompile
+- **Custom sheet formulas** — `=CRE_PRICE("DOT/USD")`, `=CRE_BALANCE("DOT")`, `=CRE_TRADE("swap 50 USDT for WETH")`
+- **Wallet sidebar** — Dark-themed dashboard in Google Sheets sidebar with portfolio overview and quick actions
+- **Export** — CSV/JSON export of trades and portfolio history
 
 ---
 
 ## Architecture
 
 ```
-Google Sheet  <-->  Apps Script (Code.gs)  <-->  SheetFra Agent (Express.js)  <-->  Polkadot Hub EVM
-     |                    |                              |                              |
-  Portfolio View     HTTP Requests              Gemini AI Chat Engine        SheetFraRegistry.sol
-  Trade Staging      Sheet Read/Write           Google Sheets API            OpenZeppelin Contracts
-  Risk Rules         Sidebar UI                 Trade Execution              DOT / USDT / WETH
+┌─────────────────┐     ┌─────────────────────┐     ┌──────────────────────┐     ┌─────────────────────┐
+│  Google Sheet    │────▶│  Apps Script         │────▶│  SheetFra Agent      │────▶│  Polkadot Hub EVM   │
+│                  │◀────│  (Code.gs)           │◀────│  (Express.js / TS)   │◀────│                     │
+├─────────────────┤     ├─────────────────────┤     ├──────────────────────┤     ├─────────────────────┤
+│ Portfolio View   │     │ Custom Formulas      │     │ Gemini 2.0 Flash AI  │     │ SheetFraRegistry    │
+│ Chat with Wallet │     │ CRE_PRICE/BALANCE    │     │ Google Sheets API    │     │  (OpenZeppelin)     │
+│ Pending Trades   │     │ Sidebar UI           │     │ Trade Staging Engine  │     │ SheetFraXcmBridge   │
+│ Risk Rules       │     │ HTTP → Agent         │     │ Risk Guardrails      │     │  (XCM precompile)   │
+│ Stablecoin Res.  │     │                     │     │ Execution Ledger     │     │ DOT / USDT / WETH   │
+│ XCM / Cross-Chain│     │                     │     │                      │     │                     │
+└─────────────────┘     └─────────────────────┘     └──────────────────────┘     └─────────────────────┘
 ```
 
-1. **Google Sheet** — The user-facing interface for portfolio data, pending trades, risk parameters, and chat.
-2. **Apps Script (Code.gs)** — Bridges the spreadsheet to the SheetFra backend via HTTP calls and provides the sidebar UI.
-3. **SheetFra Agent (Express.js / TypeScript)** — Core backend that processes AI chat, reads/writes sheet data, and submits transactions.
-4. **Polkadot Hub EVM** — On-chain execution layer where SheetFraRegistry.sol manages asset registration, approvals, and swaps.
+**Data flow:** User types in sheet → Apps Script forwards to Agent → Agent processes via Gemini AI → Stages trade in sheet → User approves → Agent executes on Polkadot Hub → Registry logs action on-chain → Sheet updates with result
 
 ---
 
-## Features
+## Code Structure
 
-- **AI-powered chat (Gemini 2.0 Flash)** — Ask questions and issue DeFi commands in plain English. The agent interprets intent, validates parameters, and stages transactions.
-- **Spreadsheet-native portfolio view, trade staging, and risk rules** — See balances, queue trades, and set limits without leaving Google Sheets.
-- **Smart contract registry (SheetFraRegistry.sol)** — Built with OpenZeppelin for upgradeable, auditable on-chain logic including asset whitelisting and trade settlement.
-- **Support for DOT, USDT, and WETH on Polkadot Hub** — Core asset coverage for the Polkadot Hub EVM ecosystem out of the box.
-- **Approve-before-execute flow** — Every trade is staged in the sheet first. Users review, then explicitly approve before any on-chain transaction is submitted.
+```
+sheetfra/
+├── sheets-agent/               # Core backend (Express.js + TypeScript)
+│   ├── src/
+│   │   ├── index.ts            # Server entry, env validation, startup
+│   │   ├── config/
+│   │   │   └── polkadot-hub.ts # Chain config (RPC, chainId, tokens)
+│   │   ├── services/
+│   │   │   ├── gemini.ts       # Gemini 2.0 Flash: structured JSON, trade intent
+│   │   │   ├── chat.ts         # Chat router: slash commands → Gemini → staging
+│   │   │   ├── sheets.ts       # Google Sheets API: auth, CRUD, template setup
+│   │   │   └── executionLedger.ts  # Execution transcript tracking
+│   │   ├── routes/
+│   │   │   ├── sheetWatcher.ts # Adaptive polling (10s active / 20s idle)
+│   │   │   ├── guardrails.ts   # Risk enforcement engine
+│   │   │   └── api.ts          # REST API routes
+│   │   ├── middleware/
+│   │   │   ├── webhookAuth.ts  # HMAC-SHA256 + bearer token auth
+│   │   │   ├── rateLimit.ts    # In-memory rate limiter
+│   │   │   └── validate.ts     # Input validation
+│   │   └── utils/              # Logger, cache, error handling
+│   └── package.json
+│
+├── contracts/                  # Solidity smart contracts (Hardhat)
+│   ├── contracts/
+│   │   ├── SheetFraRegistry.sol    # On-chain audit log (OpenZeppelin)
+│   │   └── SheetFraXcmBridge.sol   # XCM precompile bridge (Track 2)
+│   ├── scripts/
+│   │   └── deploy.ts               # Dual deploy to Polkadot Hub
+│   ├── test/
+│   │   └── SheetFraRegistry.test.ts
+│   └── hardhat.config.ts           # Polkadot Hub Testnet target
+│
+└── google-apps-script/         # Google Sheets integration
+    ├── Code.gs                 # Custom formulas, sidebar, menus
+    └── appsscript.json         # GAS manifest
+```
+
+---
+
+## Demo Flow
+
+1. **Open the Google Sheet** — The agent auto-creates 20+ tabs with formatting on startup
+2. **View portfolio** — DOT, USDT, WETH balances populate in the View Transactions tab
+3. **Chat with AI** — Type "swap 10 USDT for DOT" in the Chat with Wallet tab
+4. **Review staged trade** — Trade appears in Pending Trades with full details (pair, amount, slippage)
+5. **Approve** — Change STATUS to APPROVED to authorize execution
+6. **On-chain audit** — SheetFraRegistry logs the action; explorer link appears in sheet
+7. **Check stablecoin reserve** — Stablecoin Reserve tab shows reserve status against risk rules
+8. **XCM visibility** — XCM / Cross-Chain tab shows cross-chain asset status via precompile
 
 ---
 
 ## Tech Stack
 
-| Layer            | Technology                              |
-| ---------------- | --------------------------------------- |
-| Backend          | Express.js, TypeScript, Node.js 18+     |
-| Spreadsheet      | Google Sheets API, Google Apps Script    |
-| AI               | Gemini 2.0 Flash (Google AI)            |
-| Smart Contracts  | Solidity, Hardhat, OpenZeppelin         |
-| Blockchain       | Polkadot Hub EVM (PAS Testnet)          |
-| Wallet Support   | Talisman, SubWallet                     |
+| Layer | Technology |
+|---|---|
+| Backend | Express.js, TypeScript, Node.js 18+ |
+| Spreadsheet | Google Sheets API, Google Apps Script |
+| AI | Gemini 2.0 Flash (structured JSON output) |
+| Smart Contracts | Solidity 0.8.24, Hardhat, OpenZeppelin v5 |
+| Blockchain | Polkadot Hub EVM (PAS Testnet, chain 420420417) |
+| XCM | XCM precompile at `0xA0000` |
+| Wallet Support | Talisman, SubWallet (EVM-compatible) |
 
 ---
 
@@ -55,90 +153,76 @@ Google Sheet  <-->  Apps Script (Code.gs)  <-->  SheetFra Agent (Express.js)  <-
 ### Prerequisites
 
 - Node.js 18+
-- Google Cloud Service Account with Sheets API enabled
-- Gemini API key
+- Google Cloud Service Account with Sheets API + Drive API enabled
+- Gemini API key ([ai.google.dev](https://ai.google.dev))
 - PAS testnet tokens from [faucet.polkadot.io](https://faucet.polkadot.io)
 
-### Backend Setup
+### 1. Backend
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/sheetfra.git
-cd sheetfra
-
-# Install dependencies
 cd sheets-agent && npm install
-
-# Configure environment
 cp .env.example .env
-# Fill in all required values (see Environment Variables below)
-
-# Share your Google Sheet with the service account email
-# (the email found in your service account JSON key file)
-
-# Start the development server
+# Fill in: GOOGLE_SERVICE_ACCOUNT_KEY_PATH, GEMINI_API_KEY
+# Share a Google Sheet with your service account email (Editor access)
 npm run dev
 ```
 
-### Google Sheets Setup
+### 2. Google Apps Script
 
-1. Open your Google Sheet.
-2. Go to **Extensions > Apps Script**.
-3. Copy the contents of `Code.gs` into the Apps Script editor.
-4. Save and reload the sheet.
+1. Open your Google Sheet → Extensions → Apps Script
+2. Paste contents of `google-apps-script/Code.gs`
+3. Set Script Properties: `AGENT_URL` = your server URL, `SHEETFRA_API_KEY` = your API key
+4. Save and reload the sheet
 
----
-
-## Smart Contract
+### 3. Smart Contracts
 
 ```bash
 cd contracts && npm install
-
-# Compile contracts
 npm run compile
-
-# Deploy to Polkadot Hub EVM testnet
-npm run deploy
+npm run deploy    # Deploys SheetFraRegistry + SheetFraXcmBridge to Polkadot Hub
 ```
-
-After deployment, the contract address will be printed to the console. Verify and inspect it on [Blockscout](https://blockscout.polkadot.io) for the Polkadot Hub EVM explorer.
 
 ---
 
 ## Environment Variables
 
-| Variable                          | Description                                              |
-| --------------------------------- | -------------------------------------------------------- |
-| `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` | Path to the Google Cloud service account JSON key file   |
-| `GOOGLE_SHEET_ID`                 | ID of the target Google Sheet (from the sheet URL)       |
-| `GEMINI_API_KEY`                  | API key for Google Gemini AI                             |
-| `POLKADOT_HUB_RPC_URL`           | RPC endpoint for Polkadot Hub EVM (testnet or mainnet)   |
-| `SHEETFRA_API_KEY`               | Secret key used to authenticate Apps Script requests     |
+| Variable | Description |
+|---|---|
+| `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` | Path to Google Cloud service account JSON key |
+| `GEMINI_API_KEY` | Google Gemini AI API key |
+| `GOOGLE_SHEET_ID` | Target spreadsheet ID (auto-detected if not set) |
+| `SHEETFRA_API_KEY` | API key for Apps Script ↔ Agent auth |
+| `POLKADOT_HUB_RPC_URL` | RPC endpoint (defaults to Polkadot Hub Testnet) |
 
 ---
 
-## Demo Flow
+## Demo Materials
 
-1. **Open the Google Sheet** — Navigate to your configured SheetFra spreadsheet.
-2. **Connect your wallet** — Use Talisman or SubWallet to connect to Polkadot Hub EVM.
-3. **View your portfolio** — Balances for DOT, USDT, and WETH populate automatically.
-4. **Chat with the AI** — Type a command like `"swap 10 USDT for DOT"` in the chat sidebar.
-5. **Review the staged trade** — The trade appears in the **Pending Trades** tab with full details.
-6. **Approve the trade** — Click approve to authorize on-chain execution.
-7. **View the transaction** — Confirm the result on Blockscout with the provided transaction hash.
+1. Demo Video — *Recording in progress*
+2. [GitHub Repository](https://github.com/your-org/sheetfra)
+3. Presentation — *Slides in progress*
 
 ---
 
 ## Roadmap
 
-| Timeline | Milestone                                                        |
-| -------- | ---------------------------------------------------------------- |
-| Q2 2026  | XCM parachain asset support — bridge and manage cross-chain tokens |
-| Q3 2026  | DOT staking directly from the sheet, Bifrost vDOT integration    |
-| Q4 2026  | DAO workspace templates — multi-sig treasury management in Sheets |
+| Timeline | Milestone |
+|---|---|
+| Q2 2026 | XCM parachain asset transfers from sheet, multi-chain portfolio |
+| Q3 2026 | DOT staking from sheet, Bifrost vDOT integration |
+| Q4 2026 | DAO workspace templates — multi-sig treasury management in Sheets |
+| 2027 | Mainnet launch, Polkadot governance participation from sheet |
+
+---
+
+## Team
+
+| Name | Role |
+|---|---|
+| *Add team members* | *Add roles* |
 
 ---
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+MIT

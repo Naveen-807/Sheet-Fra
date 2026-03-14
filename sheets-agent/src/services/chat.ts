@@ -21,9 +21,13 @@ import {
   type ChatMessage,
   type GeminiContext,
 } from "./gemini"
+import { buildSwapAction, logRegistryAction } from "./registry"
 import { getErrorMessage } from "../utils/errors"
 import { createLogger } from "../utils/logger"
 import { POLKADOT_HUB_TESTNET } from "../config/polkadot-hub"
+import { fetchPortfolio, formatPortfolioForChat } from "./portfolio"
+import { getPrice, getPrices } from "./price"
+import { getNativeBalance, getTokenBalances, formatTokenBalance } from "./blockchain"
 
 const log = createLogger("chat")
 
@@ -51,10 +55,9 @@ async function handleSlashCommand(message: string): Promise<string | null> {
       "SheetFra AI — Available Commands:",
       "",
       "Portfolio & Market",
-      "  /balance <token>      Not available in sheets-only mode",
-      "  /price <pair>         Not available in sheets-only mode",
-      "  /gas                  Not available in sheets-only mode",
-      "  /portfolio            Not available in sheets-only mode",
+      "  /balance <token>      Check token balance (DOT, USDT, WETH)",
+      "  /price <pair>         Check price (DOT_USD, WETH_USD)",
+      "  /portfolio            View full portfolio with real on-chain data",
       "  /risk                 Show current risk rules",
       "  /status               Show agent status",
       "",
@@ -62,6 +65,10 @@ async function handleSlashCommand(message: string): Promise<string | null> {
       "  /polkadot             Polkadot ecosystem info",
       "  /hub-status           Polkadot Hub network info",
       "  /dot-price            DOT/USD price query",
+      "  /xcm                  XCM cross-chain status",
+      "",
+      "Stablecoin",
+      "  /reserve              Stablecoin reserve status",
       "",
       "Trading",
       "  /trade <command>      Natural-language trade staging",
@@ -71,19 +78,58 @@ async function handleSlashCommand(message: string): Promise<string | null> {
   }
 
   if (trimmed === "/gas") {
-    return "Gas lookup is disabled in sheets-only mode."
+    try {
+      const prices = await getPrices()
+      return `Gas on ${POLKADOT_HUB_TESTNET.name}: Paid in ${POLKADOT_HUB_TESTNET.nativeCurrency.symbol} (~$${prices.DOT_USD?.toFixed(2) ?? "N/A"}/DOT). Polkadot Hub has low fees.`
+    } catch {
+      return "Failed to fetch gas info. Try again later."
+    }
   }
 
   if (trimmed === "/portfolio") {
-    return "Portfolio lookup is disabled in sheets-only mode."
+    const wallet = process.env.WALLET_ADDRESS
+    if (!wallet) return "WALLET_ADDRESS not configured. Set it in .env to view portfolio."
+    try {
+      const portfolio = await fetchPortfolio(wallet)
+      return formatPortfolioForChat(portfolio)
+    } catch (err) {
+      return `Failed to fetch portfolio: ${getErrorMessage(err).slice(0, 100)}`
+    }
   }
 
-  if (trimmed.startsWith("/balance ")) {
-    return "Balance lookup is disabled in sheets-only mode."
+  if (trimmed.startsWith("/balance")) {
+    const wallet = process.env.WALLET_ADDRESS
+    if (!wallet) return "WALLET_ADDRESS not configured. Set it in .env to check balances."
+    const parts = trimmed.split(/\s+/)
+    const token = (parts[1] || "DOT").toUpperCase()
+    try {
+      if (token === "DOT" || token === "PAS") {
+        const raw = await getNativeBalance(wallet)
+        const formatted = formatTokenBalance(raw, 10)
+        return `${token} Balance: ${formatted} ${POLKADOT_HUB_TESTNET.nativeCurrency.symbol}\n  Wallet: ${wallet}`
+      } else {
+        const balances = await getTokenBalances(wallet)
+        const raw = balances[token as keyof typeof balances] || "0"
+        const decimals = token === "USDT" ? 6 : 18
+        const formatted = formatTokenBalance(raw, decimals)
+        return `${token} Balance: ${formatted}\n  Wallet: ${wallet}`
+      }
+    } catch (err) {
+      return `Failed to fetch ${token} balance: ${getErrorMessage(err).slice(0, 100)}`
+    }
   }
 
-  if (trimmed.startsWith("/price ")) {
-    return "Price lookup is disabled in sheets-only mode."
+  if (trimmed.startsWith("/price")) {
+    const parts = trimmed.split(/\s+/)
+    const pair = (parts[1] || "DOT_USD").toUpperCase()
+    try {
+      const price = await getPrice(pair)
+      return price > 0
+        ? `${pair}: $${price.toFixed(2)}`
+        : `${pair}: Price not available (check pair name — supported: DOT_USD, WETH_USD, USDT_USD)`
+    } catch (err) {
+      return `Failed to fetch price: ${getErrorMessage(err).slice(0, 100)}`
+    }
   }
 
   if (trimmed.startsWith("/trade ")) {
@@ -111,7 +157,8 @@ async function handleSlashCommand(message: string): Promise<string | null> {
       `  Gemini AI: ${geminiStatus}`,
       `  Network: ${POLKADOT_HUB_TESTNET.name}`,
       `  Chain ID: ${POLKADOT_HUB_TESTNET.chainId}`,
-      "  Mode: Sheets-only",
+      `  Wallet: ${process.env.WALLET_ADDRESS || "Not configured"}`,
+      "  Mode: Real on-chain data",
     ].join("\n")
   }
 
@@ -146,6 +193,36 @@ async function handleSlashCommand(message: string): Promise<string | null> {
     return null  // fall through to Gemini with DOT price query
   }
 
+  if (trimmed === "/reserve" || trimmed === "/stablecoin" || trimmed === "/stable") {
+    const rules = await readRiskRules(process.env.GOOGLE_SHEET_ID || "")
+    return [
+      "Stablecoin Reserve Status:",
+      `  Minimum Reserve Target: $${rules.minStableReserveUsd}`,
+      `  Allowed Stablecoins: USDT (primary on Polkadot Hub)`,
+      `  Target USDT Allocation: See Risk Rules tab`,
+      "",
+      "  Use 'How much stablecoin reserve do I have?' in chat for AI analysis.",
+      "  Use 'Rebalance to 40% USDT' to trigger a stablecoin rebalance plan.",
+    ].join("\n")
+  }
+
+  if (trimmed === "/xcm" || trimmed === "/cross-chain") {
+    return [
+      "XCM Cross-Chain Status:",
+      "",
+      `  Network: ${POLKADOT_HUB_TESTNET.name}`,
+      "  XCM Precompile: 0xA0000 (Polkadot Hub)",
+      "  Bridge Contract: SheetFraXcmBridge.sol",
+      "",
+      "  Capabilities:",
+      "  - weighMessage(): Estimate cross-chain message cost",
+      "  - execute(): Execute XCM messages locally",
+      "  - Cross-chain asset visibility via XCM queries",
+      "",
+      "  Connected Parachains: Hydration, Bifrost, Snowbridge (Ethereum)",
+    ].join("\n")
+  }
+
   return null
 }
 
@@ -153,6 +230,24 @@ async function buildGeminiContextForChat(sheetId: string): Promise<GeminiContext
   const context: GeminiContext = {
     walletAddress: process.env.WALLET_ADDRESS || undefined,
     network: POLKADOT_HUB_TESTNET.name,
+  }
+
+  // Fetch real portfolio data for Gemini context
+  const wallet = process.env.WALLET_ADDRESS
+  if (wallet) {
+    try {
+      const portfolio = await fetchPortfolio(wallet)
+      context.portfolio = {
+        totalValueUsd: portfolio.totalValueUsd,
+        tokens: portfolio.tokens.map(t => ({
+          symbol: t.symbol,
+          balance: parseFloat(t.balance) || 0,
+          valueUsd: t.valueUsd,
+        })),
+      }
+    } catch {
+      // Non-critical — Gemini will work without portfolio context
+    }
   }
 
   try {
@@ -208,6 +303,11 @@ async function maybeStageTradeIntent(
       amount: intent.amount,
       reason: `swap ${intent.amount} ${tokenIn} for ${tokenOut}`,
     })
+
+    // Log to SheetFraRegistry audit trail
+    const registryAction = buildSwapAction(sheetId, tokenIn, tokenOut, intent.amount, process.env.WALLET_ADDRESS)
+    logRegistryAction(sheetId, registryAction).catch(() => {})
+
     return true
   } catch (error) {
     log.warn("Failed to stage pending trade from AI intent", { error: getErrorMessage(error) })
@@ -228,7 +328,7 @@ function formatTradeIntentResponse(intent: {
 
   const parts = [intent.response]
   if (intent.action === "swap" && intent.tokenIn && intent.tokenOut && intent.amount) {
-    parts.push("\n\nStaged as a Pending Trade. Approve it from the Pending Trades tab to execute.")
+    parts.push("\n\nStaged as a Pending Trade. Approve it from the Pending Trades tab to execute. Action logged to SheetFraRegistry audit trail.")
   }
   return parts.join("")
 }

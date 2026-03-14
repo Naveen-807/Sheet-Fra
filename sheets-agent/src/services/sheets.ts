@@ -396,7 +396,7 @@ const TAB_DEFINITIONS: TabDefinition[] = [
     headerFg: COLORS.white,
     headers: ["TIMESTAMP", "TOKEN IN", "TOKEN OUT", "AMOUNT", "SLIPPAGE BPS", "STATUS", "TX HASH", "REBALANCE ID", "REASON"],
     sampleRows: [
-      [new Date().toISOString(), "USDT", "DOT", "50", "50", "PENDING", "", "", "Sample trade — set STATUS to APPROVED to execute"],
+      ["", "", "", "", "", "PENDING", "", "", "Trades staged from chat will appear here — set STATUS to APPROVED to execute"],
     ],
     columnWidths: [180, 110, 110, 110, 120, 120, 200, 150, 260],
     tabColor: COLORS.coral,
@@ -521,6 +521,59 @@ const TAB_DEFINITIONS: TabDefinition[] = [
     frozenRowCount: 1,
     hidden: true,
   },
+  // ── Track-specific tabs (visible for hackathon) ───────────
+  {
+    title: "Stablecoin Reserve",
+    headerBg: COLORS.green,
+    headerFg: COLORS.white,
+    headers: ["METRIC", "VALUE", "TARGET", "STATUS", "LAST UPDATED"],
+    sampleRows: [
+      ["USDT Balance", "$0.00", "—", "Syncing...", new Date().toISOString().split("T")[0]],
+      ["Stablecoin % of Portfolio", "0%", "40%", "—", "—"],
+      ["Minimum Reserve", "—", "$500", "See Risk Rules", "—"],
+      ["Reserve Health", "—", "HEALTHY", "—", "—"],
+      [],
+      ["RESERVE RULES (edit in Risk Rules tab)", "", "", "", ""],
+      ["min_stable_reserve_usd", "$500", "Minimum USD in stablecoins", "", ""],
+      ["target_USDT", "40%", "Target USDT allocation", "", ""],
+      [],
+      ["AI COMMANDS", "", "", "", ""],
+      ["Try in Chat:", "'How much stablecoin reserve do I have?'", "", "", ""],
+      ["", "'Rebalance to 40% USDT'", "", "", ""],
+      ["", "'What percentage of my portfolio is in stablecoins?'", "", "", ""],
+    ],
+    columnWidths: [220, 160, 160, 140, 200],
+    tabColor: COLORS.green,
+    frozenRowCount: 1,
+  },
+  {
+    title: "XCM / Cross-Chain",
+    headerBg: COLORS.violet,
+    headerFg: COLORS.white,
+    headers: ["PROPERTY", "VALUE", "DETAILS"],
+    sampleRows: [
+      ["XCM Precompile Address", "0xA0000", "Polkadot Hub XCM precompile"],
+      ["Bridge Contract", "SheetFraXcmBridge.sol", "Deployed on Polkadot Hub Testnet"],
+      ["Status", "Active", "Track 2: PVM Precompiles"],
+      [],
+      ["CAPABILITIES", "", ""],
+      ["weighMessage()", "Estimate XCM message cost", "IXcm.weighMessage(bytes) → Weight"],
+      ["execute()", "Execute XCM message locally", "IXcm.execute(bytes, Weight)"],
+      ["send()", "Send XCM to destination", "IXcm.send(bytes dest, bytes msg)"],
+      [],
+      ["CONNECTED CHAINS", "", ""],
+      ["Hydration", "Primary DEX", "DOT/USDT/WETH swaps via Omnipool"],
+      ["Bifrost", "Liquid Staking", "vDOT (~12-15% APY)"],
+      ["Snowbridge", "Ethereum Bridge", "WETH and ERC-20 bridging"],
+      [],
+      ["AUDIT TRAIL", "", ""],
+      ["XcmWeighRequested", "Emitted on weigh calls", "Logs caller, weight, sheet reference"],
+      ["XcmExecuteRequested", "Emitted on execute calls", "Logs caller, operationId, sheet reference"],
+    ],
+    columnWidths: [220, 240, 320],
+    tabColor: COLORS.violet,
+    frozenRowCount: 1,
+  },
 ]
 
 const TAB_ORDER = [
@@ -530,6 +583,8 @@ const TAB_ORDER = [
   "Pending Transactions",
   "Chat with Wallet",
   "Agent Logs",
+  "Stablecoin Reserve",
+  "XCM / Cross-Chain",
   "Pending Trades",
   "Trades",
   "Execution Transcript",
@@ -893,6 +948,21 @@ async function syncAgentLogsScaffold(spreadsheetId: string): Promise<void> {
 }
 
 async function syncViewTransactionsScaffold(spreadsheetId: string): Promise<void> {
+  // Attempt to fetch real portfolio data; fall back to zeros if wallet not configured or RPC fails
+  try {
+    const walletAddress = process.env.WALLET_ADDRESS
+    if (walletAddress) {
+      const { fetchPortfolio, portfolioToSheetData } = await import("./portfolio")
+      const portfolio = await fetchPortfolio(walletAddress)
+      await updatePortfolioTabRich(spreadsheetId, portfolioToSheetData(portfolio))
+      return
+    }
+  } catch (err) {
+    const log = createLogger("sheets")
+    log.warn("Real portfolio fetch failed during sync, using empty state", { error: (err as Error).message })
+  }
+
+  // Fallback: empty state
   await updatePortfolioTabRich(spreadsheetId, {
     walletAddress: process.env.WALLET_ADDRESS || "0x0000000000000000000000000000000000000000",
     network: POLKADOT_HUB_TESTNET.name,

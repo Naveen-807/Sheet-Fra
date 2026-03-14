@@ -33,6 +33,8 @@ contract SheetFraXcmBridge is Ownable, ReentrancyGuard {
     event XcmWeighRequested(address indexed caller, uint64 refTime, uint64 proofSize, string sheetRef);
     event XcmExecuteRequested(address indexed caller, bytes32 operationId, string sheetRef);
 
+    constructor() Ownable(msg.sender) {}
+
     /**
      * @notice Estimate weight for an XCM message (call XCM precompile)
      * @param xcmMessage SCALE-encoded XCM message
@@ -40,10 +42,10 @@ contract SheetFraXcmBridge is Ownable, ReentrancyGuard {
      */
     function weighXcmMessage(bytes calldata xcmMessage, string calldata sheetRef)
         external
-        view
         returns (uint64 refTime, uint64 proofSize)
     {
         IXcm.Weight memory w = XCM.weighMessage(xcmMessage);
+        emit XcmWeighRequested(msg.sender, w.refTime, w.proofSize, sheetRef);
         return (w.refTime, w.proofSize);
     }
 

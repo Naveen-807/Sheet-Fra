@@ -21,6 +21,8 @@ import {
 } from "../services/sheets"
 import { getSpreadsheetId, setSpreadsheetId } from "./sheetSingleton"
 import { restoreGuardrailState } from "./guardrails"
+// demoSeed disabled — all data is now fetched from real on-chain sources
+// import { seedDemoData } from "../services/demoSeed"
 
 const log = createLogger("shared")
 
@@ -39,6 +41,8 @@ export async function initSheetSetup(): Promise<void> {
     }
 
     await restoreGuardrailState()
+
+    // Demo seeding disabled — real on-chain data is used instead
   } catch (err: unknown) {
     log.error("Sheet auto-setup failed", { error: getErrorMessage(err) })
     log.error("Share a Google Sheet with your service account and restart.")
